@@ -1,16 +1,15 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 
 # STANDARD U-NET
 
 # Applies two convolution layers to extract image features
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 
 class DoubleConv(nn.Module):
+    """Applies two 3x3 convolutions, each followed by ReLU."""
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -33,6 +32,8 @@ class DoubleConv(nn.Module):
         return x
 
 class Down(nn.Module):
+    """Downsamples using max pooling followed by double convolution."""
+
     def __init__(self, in_channels, out_channels):
         super().__init__()
 
@@ -46,6 +47,7 @@ class Down(nn.Module):
 
 
 class Up(nn.Module):
+    """Upsamples and combines encoder features using a skip connection."""
     def __init__(self, in_channels, out_channels):
         super().__init__()
 
@@ -66,4 +68,19 @@ class Up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
 
         # Apply two convolutions
+        return self.conv(x)
+
+class OutConv(nn.Module):
+    """Applies a 1x1 convolution to produce segmentation class scores."""
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        # Convert feature channels into the number of segmentation classes
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1
+        )
+
+    def forward(self, x):
         return self.conv(x)
