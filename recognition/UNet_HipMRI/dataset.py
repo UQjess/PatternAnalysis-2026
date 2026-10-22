@@ -58,5 +58,15 @@ class MRIDataset(Dataset):
     def __len__(self):
         return len(self.image_paths)
 
+    # Tells PyTorch how to retrieve an MRI image and its mask
     def __getitem__(self, index):
-        raise NotImplementedError("MRI loading not implemented yet")
+
+        image = nib.load(
+            self.image_paths[index]
+        ).get_fdata(dtype=np.float32)
+
+        mask = nib.load(
+            self.mask_paths[index]
+        ).get_fdata()
+
+        return image, mask
