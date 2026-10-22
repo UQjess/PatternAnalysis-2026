@@ -69,4 +69,22 @@ class MRIDataset(Dataset):
             self.mask_paths[index]
         ).get_fdata()
 
+        # Normalise MRI intensity values
+        image = (image - image.mean()) / (image.std() + 1e-6)
+
+        # Pad images and masks to 256 x 144
+        padding = 144 - image.shape[1]
+
+        image = np.pad(
+            image,
+            ((0, 0), (0, padding)),
+            mode="constant"
+        )
+
+        mask = np.pad(
+            mask,
+            ((0, 0), (0, padding)),
+            mode="constant"
+        )
+
         return image, mask
