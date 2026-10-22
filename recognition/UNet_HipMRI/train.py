@@ -102,3 +102,32 @@ for epoch in range(num_epochs):
 
     training_losses.append(average_training_loss)
 
+
+    # VALIDATION
+
+    model.eval()
+
+    total_validation_loss = 0
+
+    with torch.no_grad():
+
+        for images, masks in validation_loader:
+
+            images = images.to(device)
+            masks = masks.to(device)
+
+            # Forward pass
+            outputs = model(images)
+
+            # Calculate validation loss
+            loss = criterion(outputs, masks)
+
+            total_validation_loss += (
+                loss.item() * images.size(0)
+            )
+
+    average_validation_loss = (
+        total_validation_loss / len(validation_dataset)
+    )
+
+    validation_losses.append(average_validation_loss)
