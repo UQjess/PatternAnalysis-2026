@@ -5,9 +5,6 @@ import torch.nn.functional as F
 
 # STANDARD U-NET
 
-# Applies two convolution layers to extract image features
-
-
 class DoubleConv(nn.Module):
     """Applies two 3x3 convolutions, each followed by ReLU."""
 

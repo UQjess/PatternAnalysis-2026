@@ -54,7 +54,7 @@ if torch.cuda.is_available():
 
 # HYPERPARAMETERS
 
-num_epochs = 30
+num_epochs = 1
 learning_rate = 0.001
 num_classes = 6
 
