@@ -131,6 +131,8 @@ for epoch in range(num_epochs):
     model.eval()
 
     total_validation_loss = 0
+    dice_intersections = torch.zeros(num_classes)
+    dice_totals = torch.zeros(num_classes)
 
     with torch.no_grad():
 
@@ -149,8 +151,46 @@ for epoch in range(num_epochs):
                 loss.item() * images.size(0)
             )
 
+            # Predict the segmentation class for each pixel
+            predictions = outputs.argmax(dim=1)
+
+            # Calculate Dice counts for this batch
+            intersections, totals = calculate_dice(
+                predictions,
+                masks,
+                num_classes
+            )
+
+            dice_intersections += intersections
+            dice_totals += totals
+
+
     average_validation_loss = (
         total_validation_loss / len(validation_dataset)
     )
 
     validation_losses.append(average_validation_loss)
+
+    # Calculate Dice scores for each foreground class
+
+    class_dice_scores = []
+
+    for class_id in range(1, num_classes):
+
+        if dice_totals[class_id] > 0:
+
+            dice = (
+                2 * dice_intersections[class_id]
+                / dice_totals[class_id]
+            )
+
+            class_dice_scores.append(dice.item())
+
+    # Average Dice across foreground classes
+    average_validation_dice = (
+        sum(class_dice_scores) / len(class_dice_scores)
+        if class_dice_scores else 0.0
+    )
+
+    validation_dice_scores.append(average_validation_dice)
+
