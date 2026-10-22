@@ -194,3 +194,44 @@ for epoch in range(num_epochs):
 
     validation_dice_scores.append(average_validation_dice)
 
+    
+    # SAVE BEST MODEL
+
+    if average_validation_dice > best_validation_dice:
+
+        best_validation_dice = average_validation_dice
+
+        best_model_state = copy.deepcopy(
+            model.state_dict()
+        )
+
+    print(
+        "Epoch [{}/{}], Training Loss: {:.5f}, "
+        "Validation Loss: {:.5f}, Validation Dice: {:.4f}"
+        .format(
+            epoch + 1,
+            num_epochs,
+            average_training_loss,
+            average_validation_loss,
+            average_validation_dice
+        )
+    )
+
+
+# SAVE BEST TRAINED MODEL
+
+os.makedirs("checkpoints", exist_ok=True)
+
+model.load_state_dict(best_model_state)
+
+torch.save(
+    model.state_dict(),
+    "checkpoints/unet_baseline_best.pth"
+)
+
+print(
+    "Best Validation Dice: {:.4f}".format(
+        best_validation_dice
+    )
+)
+
