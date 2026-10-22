@@ -16,6 +16,29 @@ from dataset import (
 
 from model import UNet
 
+# DICE SCORE
+
+def calculate_dice(predictions, masks, num_classes=6):
+    """Calculate the Dice score for each foreground class."""
+
+    intersections = torch.zeros(num_classes)
+    totals = torch.zeros(num_classes)
+
+    for class_id in range(1, num_classes):
+
+        predicted_class = predictions == class_id
+        actual_class = masks == class_id
+
+        intersections[class_id] = (
+            predicted_class & actual_class
+        ).sum().item()
+
+        totals[class_id] = (
+            predicted_class.sum().item()
+            + actual_class.sum().item()
+        )
+
+    return intersections, totals
 
 # DEVICE CONFIGURATION
 
