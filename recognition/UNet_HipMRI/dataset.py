@@ -122,3 +122,16 @@ test_loader = DataLoader(
     batch_size=batch_size,
     shuffle=False
 )
+
+# TEST DATA LOADING
+if __name__ == "__main__":
+
+    print("Training images:", len(train_dataset))
+    print("Validation images:", len(validation_dataset))
+    print("Test images:", len(test_dataset))
+
+    images, masks = next(iter(train_loader))
+
+    print("Image shape:", images.shape)
+    print("Mask shape:", masks.shape)
+    print("Mask labels:", torch.unique(masks))
