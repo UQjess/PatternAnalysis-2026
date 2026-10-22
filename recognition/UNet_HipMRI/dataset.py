@@ -87,4 +87,8 @@ class MRIDataset(Dataset):
             mode="constant"
         )
 
+        # Convert to PyTorch tensors
+        image = torch.from_numpy(image.copy()).unsqueeze(0).float()
+        mask = torch.from_numpy(mask.copy()).long()
+
         return image, mask
