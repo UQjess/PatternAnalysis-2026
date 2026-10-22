@@ -92,3 +92,33 @@ class MRIDataset(Dataset):
         mask = torch.from_numpy(mask.copy()).long()
 
         return image, mask
+
+# Create datasets
+train_dataset = MRIDataset(train_dir, train_seg_dir)
+
+validation_dataset = MRIDataset(
+    validation_dir,
+    validation_seg_dir
+)
+
+test_dataset = MRIDataset(test_dir, test_seg_dir)
+
+
+# Create DataLoaders
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=batch_size,
+    shuffle=True
+)
+
+validation_loader = DataLoader(
+    validation_dataset,
+    batch_size=batch_size,
+    shuffle=False
+)
+
+test_loader = DataLoader(
+    test_dataset,
+    batch_size=batch_size,
+    shuffle=False
+)
