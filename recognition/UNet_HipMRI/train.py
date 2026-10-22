@@ -52,3 +52,53 @@ optimizer = torch.optim.Adam(
     model.parameters(),
     lr=learning_rate
 )
+
+
+# TRAINING
+
+print("> Training")
+
+start = time.time()
+
+training_losses = []
+validation_losses = []
+validation_dice_scores = []
+
+best_validation_dice = -1.0
+best_model_state = None
+
+for epoch in range(num_epochs):
+
+    model.train()
+    total_training_loss = 0
+
+    for images, masks in train_loader:
+
+        images = images.to(device)
+        masks = masks.to(device)
+
+        # Forward pass
+        outputs = model(images)
+
+        # Calculate segmentation loss
+        loss = criterion(outputs, masks)
+
+        # Clear old gradients
+        optimizer.zero_grad()
+
+        # Backpropagation
+        loss.backward()
+
+        # Update model weights
+        optimizer.step()
+
+        total_training_loss += (
+            loss.item() * images.size(0)
+        )
+
+    average_training_loss = (
+        total_training_loss / len(train_dataset)
+    )
+
+    training_losses.append(average_training_loss)
+
