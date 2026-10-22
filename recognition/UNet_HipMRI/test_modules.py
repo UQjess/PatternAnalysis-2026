@@ -1,7 +1,6 @@
 import torch
 from modules import DoubleConv
-import torch
-from modules import DoubleConv, Down
+from modules import DoubleConv, Down, Up
 
 
 def test_double_conv():
@@ -19,3 +18,13 @@ def test_down():
     output = block(x)
 
     assert output.shape == (1, 128, 128, 72)
+
+def test_up():
+    block = Up(1024, 512)
+
+    x1 = torch.randn(1, 1024, 16, 9)
+    x2 = torch.randn(1, 512, 32, 18)
+
+    output = block(x1, x2)
+
+    assert output.shape == (1, 512, 32, 18)
