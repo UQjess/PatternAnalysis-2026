@@ -25,6 +25,13 @@ class ImprovedUNet(nn.Module):
 
         # Decoder upsampling pathway
         self.up4 = UpscaleBlock(128, 64)
+
+        self.transition4 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            nn.InstanceNorm2d(64),
+            nn.LeakyReLU(negative_slope=0.01)
+        )
+
         self.local4 = LocalizationBlock(128, 64)
 
         self.up3 = UpscaleBlock(64, 32)
@@ -35,6 +42,8 @@ class ImprovedUNet(nn.Module):
 
         self.up1 = UpscaleBlock(16, 8)
         self.local1 = LocalizationBlock(16, 8)
+
+
 
         # Final segmentation output
         self.out_conv = nn.Conv2d(
@@ -57,6 +66,7 @@ class ImprovedUNet(nn.Module):
 
         # Decoder with encoder skip connections
         d4 = self.up4(x5)
+        d4 = self.transition4(d4)
         d4 = torch.cat((d4, x4), dim=1)
         d4 = self.local4(d4)
 
@@ -96,7 +106,7 @@ class ImprovedUNet(nn.Module):
         # Final segmentation prediction
         out = self.out_conv(d1)
 
-        # Combine final prediction with deep supervision
+        # Combine final prediction with deep supervision 
         out = out + combined
 
         return out
