@@ -36,6 +36,12 @@ class ImprovedUNet(nn.Module):
         self.up1 = UpscaleBlock(16, 8)
         self.local1 = LocalizationBlock(16, 8)
 
+        # Final segmentation output
+        self.out_conv = nn.Conv2d(
+            8, num_classes,
+            kernel_size=1
+        )
+
     def forward(self, x):
         # Extract initial features
         x1, skip1 = self.context1(x)
@@ -63,5 +69,5 @@ class ImprovedUNet(nn.Module):
         d1 = torch.cat((d1, skip1), dim=1)
         d1 = self.local1(d1)
 
-        return d1
+        return self.out_conv(d1)
 
