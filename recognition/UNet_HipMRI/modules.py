@@ -81,3 +81,58 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
+
+class FirstContext(nn.Module):
+    """First encoder context block of the Improved 2D U-Net."""
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        # Initial convolution to extract features
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, padding=1,
+            bias=False
+        )
+
+        # Additional convolutions for residual feature learning
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, padding=1,
+            bias=False
+        )
+
+        self.conv3 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, padding=1,
+            bias=False
+        )
+
+        # Activation, regularisation, and normalisation
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
+        self.dropout = nn.Dropout(p=0.3)
+        self.norm = nn.InstanceNorm2d(out_channels)
+
+    def forward(self, x):
+        # Save initial features for residual connection
+        out = self.conv1(x)
+        residual = out
+
+        # Apply convolutions with activation and dropout
+        out = self.activation(out)
+        out = self.conv2(out)
+        out = self.dropout(out)
+        out = self.activation(out)
+        out = self.conv3(out)
+
+        # Add residual features
+        out = out + residual
+
+        # Save activated features for the decoder skip connection
+        skip = self.activation(out)
+
+        # Normalise features for the next encoder level
+        out = self.norm(out)
+        out = self.activation(out)
+
+        return out, skip
+
+
