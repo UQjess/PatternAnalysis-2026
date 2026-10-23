@@ -41,6 +41,9 @@ class ImprovedUNet(nn.Module):
             8, num_classes,
             kernel_size=1
         )
+        # Intermediate segmentation predictions
+        self.aux3 = nn.Conv2d(32, num_classes, kernel_size=1)
+        self.aux2 = nn.Conv2d(16, num_classes, kernel_size=1)
 
     def forward(self, x):
         # Extract initial features
@@ -69,5 +72,45 @@ class ImprovedUNet(nn.Module):
         d1 = torch.cat((d1, skip1), dim=1)
         d1 = self.local1(d1)
 
-        return self.out_conv(d1)
+        # Intermediate segmentation predictions
+        aux3 = self.aux3(d3)
+        aux2 = self.aux2(d2)
 
+        # Upsample the first prediction to the next decoder level
+        aux3 = nn.functional.interpolate(
+            aux3, size=aux2.shape[2:], mode="nearest"
+        )
+
+        # Combine intermediate predictions
+        combined = aux3 + aux2
+
+        # Upsample to the final segmentation resolution
+        combined = nn.functional.interpolate(
+            combined, size=d1.shape[2:], mode="nearest"
+        )
+
+        # Combine with the final prediction
+        out = self.out_conv(d1) + combined
+
+        return out
+
+if __name__ == "__main__":
+    model = ImprovedUNet()
+    x = torch.randn(2, 1, 128, 128)
+
+    # Forward pass
+    out = model(x)
+    assert out.shape == (2, 6, 128, 128)
+
+    # Backward pass
+    target = torch.randint(0, 6, (2, 128, 128))
+    loss = nn.CrossEntropyLoss()(out, target)
+    loss.backward()
+
+    assert all(
+        p.grad is not None
+        for p in model.parameters()
+        if p.requires_grad
+    )
+
+    print("Forward and backward passes successful!")
