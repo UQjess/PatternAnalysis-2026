@@ -136,3 +136,63 @@ class FirstContext(nn.Module):
         return out, skip
 
 
+class DownContext(nn.Module):
+    """Downsampling context block of the Improved 2D U-Net."""
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        # Downsample using a stride-2 convolution
+        self.down = nn.Conv2d(
+            in_channels, out_channels,
+            kernel_size=3, stride=2, padding=1,
+            bias=False
+        )
+
+        # Convolutions for residual feature learning
+        self.conv1 = nn.Conv2d(
+            out_channels, out_channels,
+            kernel_size=3, padding=1,
+            bias=False
+        )
+
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels,
+            kernel_size=3, padding=1,
+            bias=False
+        )
+
+        # Separate normalisation stages
+        self.norm1 = nn.InstanceNorm2d(out_channels)
+        self.norm2 = nn.InstanceNorm2d(out_channels)
+        self.norm3 = nn.InstanceNorm2d(out_channels)
+
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
+        self.dropout = nn.Dropout(p=0.3)
+
+
+    def forward(self, x):
+        # Downsample and save residual features
+        out = self.down(x)
+        residual = out
+
+        # First convolution stage
+        out = self.norm1(out)
+        out = self.activation(out)
+        out = self.conv1(out)
+
+        out = self.dropout(out)
+
+        # Second convolution stage
+        out = self.norm2(out)
+        out = self.activation(out)
+        out = self.conv2(out)
+
+        # Residual addition
+        out = out + residual
+
+        # Normalise and activate the output
+        out = self.norm3(out)
+        out = self.activation(out)
+
+        return out
