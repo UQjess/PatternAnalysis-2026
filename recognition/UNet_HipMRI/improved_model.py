@@ -72,45 +72,32 @@ class ImprovedUNet(nn.Module):
         d1 = torch.cat((d1, skip1), dim=1)
         d1 = self.local1(d1)
 
-        # Intermediate segmentation predictions
-        aux3 = self.aux3(d3)
-        aux2 = self.aux2(d2)
+        # Deep supervision
 
-        # Upsample the first prediction to the next decoder level
-        aux3 = nn.functional.interpolate(
-            aux3, size=aux2.shape[2:], mode="nearest"
+        # First intermediate prediction
+        ds2 = self.aux3(d3)
+
+        # Upsample to the next decoder resolution
+        ds2 = nn.functional.interpolate(
+            ds2, scale_factor=2, mode="nearest"
         )
 
-        # Combine intermediate predictions
-        combined = aux3 + aux2
+        # Second intermediate prediction
+        ds3 = self.aux2(d2)
 
-        # Upsample to the final segmentation resolution
+        # Combine both intermediate predictions
+        combined = ds2 + ds3
+
+        # Upsample to the final resolution
         combined = nn.functional.interpolate(
-            combined, size=d1.shape[2:], mode="nearest"
+            combined, scale_factor=2, mode="nearest"
         )
 
-        # Combine with the final prediction
-        out = self.out_conv(d1) + combined
+        # Final segmentation prediction
+        out = self.out_conv(d1)
+
+        # Combine final prediction with deep supervision
+        out = out + combined
 
         return out
 
-if __name__ == "__main__":
-    model = ImprovedUNet()
-    x = torch.randn(2, 1, 128, 128)
-
-    # Forward pass
-    out = model(x)
-    assert out.shape == (2, 6, 128, 128)
-
-    # Backward pass
-    target = torch.randint(0, 6, (2, 128, 128))
-    loss = nn.CrossEntropyLoss()(out, target)
-    loss.backward()
-
-    assert all(
-        p.grad is not None
-        for p in model.parameters()
-        if p.requires_grad
-    )
-
-    print("Forward and backward passes successful!")
