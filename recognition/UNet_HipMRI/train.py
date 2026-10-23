@@ -1,4 +1,3 @@
-
 import os
 import time
 import copy
@@ -54,7 +53,7 @@ if torch.cuda.is_available():
 
 # HYPERPARAMETERS
 
-num_epochs = 1
+num_epochs = 20
 learning_rate = 0.001
 num_classes = 6
 
@@ -80,6 +79,10 @@ optimizer = torch.optim.Adam(
 # TRAINING
 
 print("> Training")
+
+if torch.cuda.is_available():
+    torch.cuda.synchronize()
+    torch.cuda.reset_peak_memory_stats()
 
 start = time.time()
 
@@ -195,7 +198,7 @@ for epoch in range(num_epochs):
     validation_dice_scores.append(average_validation_dice)
 
     
-    # SAVE BEST MODEL
+        # SAVE BEST MODEL
 
     if average_validation_dice > best_validation_dice:
 
@@ -203,6 +206,13 @@ for epoch in range(num_epochs):
 
         best_model_state = copy.deepcopy(
             model.state_dict()
+        )
+
+        os.makedirs("checkpoints", exist_ok=True)
+
+        torch.save(
+            best_model_state,
+            "checkpoints/unet_baseline_best.pth"
         )
 
     print(
@@ -216,7 +226,27 @@ for epoch in range(num_epochs):
             average_validation_dice
         )
     )
+    
+# TRAINING TIME AND VRAM
 
+if torch.cuda.is_available():
+    torch.cuda.synchronize()
+
+end = time.time()
+
+elapsed = end - start
+
+print(
+    "Training took "
+    + str(elapsed)
+    + " secs or "
+    + str(elapsed / 60)
+    + " mins in total"
+)
+
+if torch.cuda.is_available():
+    peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 3)
+    print("Peak GPU VRAM:", peak_vram, "GB")
 
 # SAVE BEST TRAINED MODEL
 
