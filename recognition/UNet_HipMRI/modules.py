@@ -196,3 +196,28 @@ class DownContext(nn.Module):
         out = self.activation(out)
 
         return out
+
+class UpscaleBlock(nn.Module):
+    """Upsampling block of the Improved 2D U-Net."""
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        self.upsample = nn.Upsample(
+            scale_factor=2,
+            mode="nearest"
+        )
+
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            padding=1,
+            bias=False
+        )
+
+    def forward(self, x):
+        out = self.upsample(x)
+        out = self.conv(out)
+
+        return out
