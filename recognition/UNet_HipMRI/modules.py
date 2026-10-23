@@ -198,10 +198,13 @@ class DownContext(nn.Module):
         return out
 
 class UpscaleBlock(nn.Module):
-    """Upsampling block of the Improved 2D U-Net."""
+    """Upsampling block adapted from Isensee et al. (2018)."""
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
+
+        self.norm1 = nn.InstanceNorm2d(in_channels)
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
 
         self.upsample = nn.Upsample(
             scale_factor=2,
@@ -216,50 +219,49 @@ class UpscaleBlock(nn.Module):
             bias=False
         )
 
+        self.norm2 = nn.InstanceNorm2d(out_channels)
+
     def forward(self, x):
-        out = self.upsample(x)
+        out = self.norm1(x)
+        out = self.activation(out)
+
+        out = self.upsample(out)
         out = self.conv(out)
+
+        out = self.norm2(out)
+        out = self.activation(out)
 
         return out
 
 class LocalizationBlock(nn.Module):
-    """Decoder localisation block of the Improved 2D U-Net."""
+    """Decoder localisation block adapted from Isensee et al. (2018)."""
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
 
-        # Normalisation and activation
-        self.norm1 = nn.InstanceNorm2d(in_channels)
-        self.activation = nn.LeakyReLU(negative_slope=0.01)
-
-        # 3x3 convolution for feature processing
         self.conv1 = nn.Conv2d(
-            in_channels, out_channels,
-            kernel_size=3, padding=1,
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            padding=1,
             bias=False
         )
 
-        # Normalisation before the second convolution
-        self.norm2 = nn.InstanceNorm2d(out_channels)
+        self.norm = nn.InstanceNorm2d(out_channels)
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
 
-        # 1x1 convolution for channel processing
         self.conv2 = nn.Conv2d(
-            out_channels, out_channels,
+            out_channels,
+            out_channels,
             kernel_size=1,
             bias=False
         )
 
     def forward(self, x):
-        # Apply normalisation, activation, and 3x3 convolution
-        out = self.norm1(x)
-        out = self.activation(out)
-        out = self.conv1(out)
-
-        # Apply normalisation, activation, and 1x1 convolution
-        out = self.norm2(out)
+        out = self.conv1(x)
+        out = self.norm(out)
         out = self.activation(out)
         out = self.conv2(out)
 
         return out
 
-s
