@@ -23,6 +23,19 @@ class ImprovedUNet(nn.Module):
         self.context4 = DownContext(32, 64)
         self.context5 = DownContext(64, 128)
 
+        # Decoder upsampling pathway
+        self.up4 = UpscaleBlock(128, 64)
+        self.local4 = LocalizationBlock(128, 64)
+
+        self.up3 = UpscaleBlock(64, 32)
+        self.local3 = LocalizationBlock(64, 32)
+
+        self.up2 = UpscaleBlock(32, 16)
+        self.local2 = LocalizationBlock(32, 16)
+
+        self.up1 = UpscaleBlock(16, 8)
+        self.local1 = LocalizationBlock(16, 8)
+
     def forward(self, x):
         # Extract initial features
         x1, skip1 = self.context1(x)
@@ -33,6 +46,22 @@ class ImprovedUNet(nn.Module):
         x4 = self.context4(x3)
         x5 = self.context5(x4)
 
-        return x5
+        # Decoder with encoder skip connections
+        d4 = self.up4(x5)
+        d4 = torch.cat((d4, x4), dim=1)
+        d4 = self.local4(d4)
 
+        d3 = self.up3(d4)
+        d3 = torch.cat((d3, x3), dim=1)
+        d3 = self.local3(d3)
+
+        d2 = self.up2(d3)
+        d2 = torch.cat((d2, x2), dim=1)
+        d2 = self.local2(d2)
+
+        d1 = self.up1(d2)
+        d1 = torch.cat((d1, skip1), dim=1)
+        d1 = self.local1(d1)
+
+        return d1
 
