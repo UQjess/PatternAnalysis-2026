@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 # STANDARD U-NET
 
+# Adapted from Ronneberger et al. (2015).
+# Uses padding=1 to preserve spatial dimensions.
 class DoubleConv(nn.Module):
     """Applies two 3x3 convolutions, each followed by ReLU."""
 
@@ -41,7 +42,6 @@ class Down(nn.Module):
 
     def forward(self, x):
         return self.maxpool_conv(x)
-
 
 class Up(nn.Module):
     """Upsamples and combines encoder features using a skip connection."""
@@ -83,19 +83,26 @@ class OutConv(nn.Module):
         return self.conv(x)
 
 
+# IMPROVED 2D U-NET
+# Adapted from Isensee et al. (2018).
 class FirstContext(nn.Module):
     """First encoder context block of the Improved 2D U-Net."""
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
 
-        # Initial convolution to extract features
         self.conv1 = nn.Conv2d(
             in_channels, out_channels, kernel_size=3, padding=1,
             bias=False
         )
 
-        # Additional convolutions for residual feature learning
+        self.norm1 = nn.InstanceNorm2d(out_channels)
+        self.norm2 = nn.InstanceNorm2d(out_channels)
+        self.norm3 = nn.InstanceNorm2d(out_channels)
+
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
+        self.dropout = nn.Dropout(p=0.3)
+
         self.conv2 = nn.Conv2d(
             out_channels, out_channels, kernel_size=3, padding=1,
             bias=False
@@ -106,31 +113,29 @@ class FirstContext(nn.Module):
             bias=False
         )
 
-        # Activation, regularisation, and normalisation
-        self.activation = nn.LeakyReLU(negative_slope=0.01)
-        self.dropout = nn.Dropout(p=0.3)
-        self.norm = nn.InstanceNorm2d(out_channels)
-
     def forward(self, x):
-        # Save initial features for residual connection
         out = self.conv1(x)
+
+        # Preserve initial features for residual addition
         residual = out
 
-        # Apply convolutions with activation and dropout
+        out = self.norm1(out)
         out = self.activation(out)
         out = self.conv2(out)
+
         out = self.dropout(out)
+
+        out = self.norm2(out)
         out = self.activation(out)
         out = self.conv3(out)
 
-        # Add residual features
+        # Combine learned features with the residual
         out = out + residual
 
-        # Save activated features for the decoder skip connection
+        # Preserve features for the decoder skip connection
         skip = self.activation(out)
 
-        # Normalise features for the next encoder level
-        out = self.norm(out)
+        out = self.norm3(out)
         out = self.activation(out)
 
         return out, skip
@@ -233,7 +238,7 @@ class UpscaleBlock(nn.Module):
 
         return out
 
-class LocalizationBlock(nn.Module):
+class LocalisationBlock(nn.Module):
     """Decoder localisation block adapted from Isensee et al. (2018)."""
 
     def __init__(self, in_channels, out_channels):
@@ -241,27 +246,28 @@ class LocalizationBlock(nn.Module):
 
         self.conv1 = nn.Conv2d(
             in_channels,
-            out_channels,
+            in_channels,
             kernel_size=3,
             padding=1,
             bias=False
         )
 
-        self.norm = nn.InstanceNorm2d(out_channels)
+        self.norm = nn.InstanceNorm2d(in_channels)
         self.activation = nn.LeakyReLU(negative_slope=0.01)
 
         self.conv2 = nn.Conv2d(
-            out_channels,
+            in_channels,
             out_channels,
             kernel_size=1,
             bias=False
         )
 
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.norm(out)
-        out = self.activation(out)
-        out = self.conv2(out)
+        features = self.conv1(x)
+        features = self.norm(features)
+        features = self.activation(features)
 
-        return out
+        # Reduce feature channels for the next decoder stage
+        out = self.conv2(features)
 
+        return out, features
