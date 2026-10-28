@@ -5,6 +5,10 @@ import copy
 import torch
 import torch.nn as nn
 
+import csv
+import random
+import numpy as np
+
 from dataset import (
     train_dataset,
     validation_dataset,
@@ -13,6 +17,16 @@ from dataset import (
 )
 
 from improved_model import ImprovedUNet
+
+# REPRODUCIBILITY
+
+# Set random seeds to improve reproducibility across training runs
+seed = 42
+
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
 
 # DICE SCORE
 
@@ -39,6 +53,20 @@ def calculate_dice(predictions, masks, num_classes=6):
 
     return intersections, totals
 
+def initialise_weights(module):
+    """Initialise convolution weights using He normal initialisation."""
+
+    if isinstance(module, nn.Conv2d):
+        nn.init.kaiming_normal_(
+            module.weight,
+            mode="fan_in",
+            nonlinearity="relu"
+        )
+
+        if module.bias is not None:
+            nn.init.zeros_(module.bias)
+
+
 # DEVICE CONFIGURATION
 
 device = torch.device(
@@ -53,7 +81,7 @@ if torch.cuda.is_available():
 
 # HYPERPARAMETERS
 
-num_epochs = 20
+num_epochs = 40
 learning_rate = 0.001
 num_classes = 6
 
@@ -63,7 +91,12 @@ num_classes = 6
 model = ImprovedUNet(
     in_channels=1,
     num_classes=num_classes
-).to(device)
+)
+
+# Apply Kaiming initialisation before moving the model to the device
+model.apply(initialise_weights)
+
+model = model.to(device)
 
 
 # LOSS AND OPTIMIZER
@@ -80,6 +113,11 @@ optimizer = torch.optim.Adam(
 
 print("> Training")
 
+# Reset GPU memory statistics before measuring training resources
+if torch.cuda.is_available():
+    torch.cuda.synchronize()
+    torch.cuda.reset_peak_memory_stats()
+
 start = time.time()
 
 # Track the checkpoint with the highest mean foreground validation Dice
@@ -88,6 +126,11 @@ best_model_state = None
 best_epoch = 0
 
 checkpoint_path = "checkpoints/unet_improved_best.pth"
+
+# Store epoch metrics for training curves and model comparison
+training_losses = []
+validation_losses = []
+validation_dice_scores = []
 
 for epoch in range(num_epochs):
 
@@ -117,8 +160,10 @@ for epoch in range(num_epochs):
         total_training_loss / len(train_dataset)
     )
 
+    training_losses.append(average_training_loss)
 
-        # VALIDATION
+
+    # VALIDATION
 
     model.eval()
 
@@ -156,6 +201,7 @@ for epoch in range(num_epochs):
         total_validation_loss / len(validation_dataset)
     )
 
+    validation_losses.append(average_validation_loss)
 
     # CALCULATE VALIDATION DICE
 
@@ -177,6 +223,7 @@ for epoch in range(num_epochs):
         if class_dice_scores else 0.0
     )
 
+    validation_dice_scores.append(average_validation_dice)
 
     # SAVE BEST MODEL
 
@@ -217,6 +264,11 @@ elapsed = time.time() - start
 
 print("Training time:", elapsed / 60, "minutes")
 
+# Record peak allocated GPU memory during training
+if torch.cuda.is_available():
+    peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 3)
+    print("Peak GPU VRAM:", peak_vram, "GB")
+
 # RESTORE BEST TRAINED MODEL
 
 model.load_state_dict(best_model_state)
@@ -228,3 +280,43 @@ print(
         best_validation_dice
     )
 )
+
+# SAVE TRAINING HISTORY
+
+# Export epoch metrics for plotting learning curves
+with open(
+    "checkpoints/unet_improved_history.csv",
+    "w",
+    newline=""
+) as file:
+
+    writer = csv.writer(file)
+
+    writer.writerow([
+        "epoch",
+        "training_loss",
+        "validation_loss",
+        "validation_dice"
+    ])
+
+    for i in range(num_epochs):
+        writer.writerow([
+            i + 1,
+            training_losses[i],
+            validation_losses[i],
+            validation_dice_scores[i]
+        ])
+
+
+# SAVE TRAINING SUMMARY
+
+# Record best validation performance and computational cost
+with open("checkpoints/unet_improved_summary.txt", "w") as file:
+
+    file.write(f"Best Epoch: {best_epoch}\n")
+    file.write(f"Best Validation Dice: {best_validation_dice:.4f}\n")
+    file.write(f"Training Time: {elapsed / 60:.2f} minutes\n")
+    file.write(f"Parameters: {sum(p.numel() for p in model.parameters())}\n")
+
+    if torch.cuda.is_available():
+        file.write(f"Peak VRAM: {peak_vram:.3f} GB\n")
