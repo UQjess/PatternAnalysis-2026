@@ -1,10 +1,13 @@
 import os
 import time
 import copy
-
+import csv
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+
+import random
+import numpy as np
 
 from dataset import (
     train_dataset,
@@ -15,6 +18,15 @@ from dataset import (
 
 from model import UNet
 
+
+# REPRODUCIBILITY
+seed = 42
+
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
 # DICE SCORE
 
 def calculate_dice(predictions, masks, num_classes=6):
@@ -23,6 +35,7 @@ def calculate_dice(predictions, masks, num_classes=6):
     intersections = torch.zeros(num_classes)
     totals = torch.zeros(num_classes)
 
+    # Exclude background (class 0) from Dice evaluation
     for class_id in range(1, num_classes):
 
         predicted_class = predictions == class_id
@@ -39,6 +52,20 @@ def calculate_dice(predictions, masks, num_classes=6):
 
     return intersections, totals
 
+def initialise_weights(module):
+    """Initialise convolution weights using He normal initialisation."""
+
+    if isinstance(module, nn.Conv2d):
+        nn.init.kaiming_normal_(
+            module.weight,
+            mode="fan_in",
+            nonlinearity="relu"
+        )
+
+        if module.bias is not None:
+            nn.init.zeros_(module.bias)
+
+
 # DEVICE CONFIGURATION
 
 device = torch.device(
@@ -53,7 +80,7 @@ if torch.cuda.is_available():
 
 # HYPERPARAMETERS
 
-num_epochs = 20
+num_epochs = 40
 learning_rate = 0.001
 num_classes = 6
 
@@ -63,7 +90,12 @@ num_classes = 6
 model = UNet(
     in_channels=1,
     num_classes=num_classes
-).to(device)
+)
+
+# Apply Kaiming initialisation before moving the model to the device
+model.apply(initialise_weights)
+
+model = model.to(device)
 
 
 # LOSS AND OPTIMIZER
@@ -80,18 +112,22 @@ optimizer = torch.optim.Adam(
 
 print("> Training")
 
+# Reset GPU memory statistics before measuring training resources
 if torch.cuda.is_available():
     torch.cuda.synchronize()
     torch.cuda.reset_peak_memory_stats()
 
 start = time.time()
 
+# Store epoch metrics for training curves and model comparison
 training_losses = []
 validation_losses = []
 validation_dice_scores = []
 
+# Track the checkpoint with the highest mean foreground validation Dice
 best_validation_dice = -1.0
 best_model_state = None
+best_epoch = 0
 
 for epoch in range(num_epochs):
 
@@ -103,19 +139,19 @@ for epoch in range(num_epochs):
         images = images.to(device)
         masks = masks.to(device)
 
+        # Clear old gradients
+        optimizer.zero_grad()
+        
         # Forward pass
         outputs = model(images)
 
         # Calculate segmentation loss
         loss = criterion(outputs, masks)
 
-        # Clear old gradients
-        optimizer.zero_grad()
-
         # Backpropagation
         loss.backward()
 
-        # Update model weights
+        # Update model parameters
         optimizer.step()
 
         total_training_loss += (
@@ -157,7 +193,7 @@ for epoch in range(num_epochs):
             # Predict the segmentation class for each pixel
             predictions = outputs.argmax(dim=1)
 
-            # Calculate Dice counts for this batch
+            # Calculate intersection and total counts for each batch
             intersections, totals = calculate_dice(
                 predictions,
                 masks,
@@ -174,10 +210,12 @@ for epoch in range(num_epochs):
 
     validation_losses.append(average_validation_loss)
 
-    # Calculate Dice scores for each foreground class
+
+    # CALCULATE VALIDATION DICE
 
     class_dice_scores = []
 
+    # Calculate Dice for each foreground class
     for class_id in range(1, num_classes):
 
         if dice_totals[class_id] > 0:
@@ -198,11 +236,13 @@ for epoch in range(num_epochs):
     validation_dice_scores.append(average_validation_dice)
 
     
-        # SAVE BEST MODEL
+    # SAVE BEST MODEL
 
+    # Select the checkpoint with the highest mean foreground validation Dice
     if average_validation_dice > best_validation_dice:
 
         best_validation_dice = average_validation_dice
+        best_epoch = epoch + 1
 
         best_model_state = copy.deepcopy(
             model.state_dict()
@@ -226,7 +266,8 @@ for epoch in range(num_epochs):
             average_validation_dice
         )
     )
-    
+
+
 # TRAINING TIME AND VRAM
 
 if torch.cuda.is_available():
@@ -248,16 +289,15 @@ if torch.cuda.is_available():
     peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 3)
     print("Peak GPU VRAM:", peak_vram, "GB")
 
-# SAVE BEST TRAINED MODEL
+print("Best epoch:", best_epoch)
+
+
+# RESTORE BEST TRAINED MODEL
 
 os.makedirs("checkpoints", exist_ok=True)
 
+# Restore the checkpoint with the highest validation Dice
 model.load_state_dict(best_model_state)
-
-torch.save(
-    model.state_dict(),
-    "checkpoints/unet_baseline_best.pth"
-)
 
 print(
     "Best Validation Dice: {:.4f}".format(
@@ -265,3 +305,41 @@ print(
     )
 )
 
+
+# SAVE TRAINING HISTORY
+
+# Export epoch metrics for plotting learning curves
+with open(
+    "checkpoints/unet_baseline_history.csv",
+    "w",
+    newline=""
+) as file:
+
+    writer = csv.writer(file)
+
+    writer.writerow([
+        "epoch",
+        "training_loss",
+        "validation_loss",
+        "validation_dice"
+    ])
+
+    for i in range(num_epochs):
+        writer.writerow([
+            i + 1,
+            training_losses[i],
+            validation_losses[i],
+            validation_dice_scores[i]
+        ])
+
+# SAVE TRAINING SUMMARY
+
+# Record best validation performance and computational cost
+with open("checkpoints/unet_baseline_summary.txt", "w") as file:
+    file.write(f"Best Epoch: {best_epoch}\n")
+    file.write(f"Best Validation Dice: {best_validation_dice:.4f}\n")
+    file.write(f"Training Time: {elapsed / 60:.2f} minutes\n")
+    file.write(f"Parameters: {sum(p.numel() for p in model.parameters())}\n")
+
+    if torch.cuda.is_available():
+        file.write(f"Peak VRAM: {peak_vram:.3f} GB\n")
