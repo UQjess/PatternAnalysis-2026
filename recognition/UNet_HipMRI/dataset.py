@@ -272,6 +272,34 @@ class MRIDataset(Dataset):
 
         return image, mask
 
+def analyse_class_imbalance(dataset):
+    """
+    Calculates the pixel count and percentage of each segmentation class.
+    """
+
+    num_classes = 6
+    class_counts = np.zeros(num_classes, dtype=np.int64)
+
+    for index in range(len(dataset)):
+        _, mask = dataset[index]
+
+        counts = torch.bincount(
+            mask.flatten(),
+            minlength=num_classes
+        )
+
+        class_counts += counts.numpy()
+
+    total_pixels = class_counts.sum()
+
+    print("\nClass Distribution:")
+
+    for class_id, count in enumerate(class_counts):
+        percentage = (count / total_pixels) * 100
+
+        print(f"Class {class_id}: {count:,} pixels ({percentage:.2f}%)")
+
+    return class_counts
 
 # DATA INITIALISATION
 
