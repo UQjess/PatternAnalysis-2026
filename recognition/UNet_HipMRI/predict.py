@@ -431,30 +431,6 @@ def generate_failure_cases(models, num_cases=5):
             'Improved errors (FP red / FN blue)'
         )
 
-        # Highlight the selected anatomical region with dashed lines.
-        if region is not None and region in regional[index]:
-            example_row = next(
-                iter(regional[index][region].values())
-            )
-
-            lower = int(example_row['si_lower'])
-            upper = int(example_row['si_upper'])
-
-            for ax in axes.flat:
-                ax.axvline(
-                    lower - 0.5,
-                    color='yellow',
-                    linewidth=1,
-                    linestyle='--'
-                )
-
-                ax.axvline(
-                    upper + 0.5,
-                    color='yellow',
-                    linewidth=1,
-                    linestyle='--'
-                )
-
         descriptions = []
 
         # Calculate accuracy and error counts for each model.
