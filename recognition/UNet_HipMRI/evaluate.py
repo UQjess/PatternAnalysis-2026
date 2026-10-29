@@ -116,3 +116,93 @@ def calculate_prostate_metrics(prediction, ground_truth):
         "ground_truth_pixels": int(gt_count),
         "predicted_pixels": int(pred_count)
     }
+
+def calculate_metrics(predictions, masks, num_classes=6):
+    """
+    Calculate pixel counts required for per-class Dice and IoU.
+    """
+
+    intersections = torch.zeros(num_classes, dtype=torch.float64)
+    predicted_totals = torch.zeros(num_classes, dtype=torch.float64)
+    actual_totals = torch.zeros(num_classes, dtype=torch.float64)
+
+    for class_id in range(num_classes):
+
+        predicted_class = predictions == class_id
+        actual_class = masks == class_id
+
+        intersections[class_id] = (
+            predicted_class & actual_class
+        ).sum().item()
+
+        predicted_totals[class_id] = predicted_class.sum().item()
+        actual_totals[class_id] = actual_class.sum().item()
+
+    return intersections, predicted_totals, actual_totals
+
+
+def calculate_scores(intersections, predicted_totals, actual_totals):
+    """Calculate per-class Dice and IoU scores."""
+
+    results = []
+
+    for class_id in range(num_classes):
+
+        intersection = intersections[class_id].item()
+        predicted = predicted_totals[class_id].item()
+        actual = actual_totals[class_id].item()
+
+        # Calculate Dice and IoU denominators
+        dice_denominator = predicted + actual
+        union = predicted + actual - intersection
+
+        # Avoid division by zero for absent classes
+        dice = (
+            2 * intersection / dice_denominator
+            if dice_denominator > 0 else float("nan")
+        )
+
+        iou = (
+            intersection / union
+            if union > 0 else float("nan")
+        )
+
+        results.append({
+            "class_id": class_id,
+            "dice": dice,
+            "iou": iou
+        })
+
+    return results
+
+
+def calculate_mean_foreground(results):
+    """Calculate mean Dice and IoU across foreground classes."""
+
+    # Exclude background
+    foreground = results[1:]
+
+    # Ignore undefined scores from classes absent in both masks
+    valid_dice = [
+        result["dice"]
+        for result in foreground
+        if not torch.isnan(torch.tensor(result["dice"]))
+    ]
+
+    valid_iou = [
+        result["iou"]
+        for result in foreground
+        if not torch.isnan(torch.tensor(result["iou"]))
+    ]
+
+    mean_dice = (
+        sum(valid_dice) / len(valid_dice)
+        if valid_dice else float("nan")
+    )
+
+    mean_iou = (
+        sum(valid_iou) / len(valid_iou)
+        if valid_iou else float("nan")
+    )
+
+    return mean_dice, mean_iou
