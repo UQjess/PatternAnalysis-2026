@@ -206,3 +206,167 @@ def calculate_mean_foreground(results):
     )
 
     return mean_dice, mean_iou
+
+def save_prostate_results(results, model_name):
+    """
+    Save prostate segmentation metrics for test slices.
+    """
+    os.makedirs("results", exist_ok=True)
+
+    output_path = f"results/{model_name}_prostate_slices.csv"
+
+    fieldnames = [
+        "index",
+        "filename",
+        "dice",
+        "iou",
+        "hd95_pixels",
+        "ground_truth_pixels",
+        "predicted_pixels"
+    ]
+
+    with open(output_path, "w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(results)
+
+    print(f"Saved prostate metrics to {output_path}")
+
+    # Exclude infinite HD95 values when calculating the average
+    valid_hd95 = [
+        result["hd95_pixels"]
+        for result in results
+        if np.isfinite(result["hd95_pixels"])
+    ]
+
+    mean_hd95 = (
+        float(np.mean(valid_hd95))
+        if valid_hd95 else float("nan")
+    )
+
+    # Count slices where HD95 could not be calculated
+    failed_hd95 = len(results) - len(valid_hd95)
+
+    print(f"Mean HD95 (finite cases): {mean_hd95:.4f} pixels")
+    print(f"Undefined HD95 cases: {failed_hd95}")
+
+    return mean_hd95, failed_hd95
+
+
+def evaluate_model(model, data_loader, model_name):
+    """Evaluate a segmentation model on the held-out test dataset."""
+
+    model.eval()
+
+    # Accumulate class pixel counts across the entire test dataset
+    intersections = torch.zeros(num_classes, dtype=torch.float64)
+    predicted_totals = torch.zeros(num_classes, dtype=torch.float64)
+    actual_totals = torch.zeros(num_classes, dtype=torch.float64)
+
+    total_inference_time = 0.0
+    total_images = 0
+
+    # Initialise test loss
+    total_test_loss = 0.0
+
+    prostate_results = []
+    dataset_index = 0
+
+    # Reset peak GPU memory measurement
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+
+    with torch.no_grad():
+
+        for images, masks in data_loader:
+
+            images = images.to(device)
+            masks = masks.to(device)
+
+            # Synchronise GPU before timing
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+
+            start_time = time.perf_counter()
+
+            # Generate segmentation predictions
+            outputs = model(images)
+
+            # Wait for GPU inference to finish
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+
+            total_inference_time += time.perf_counter() - start_time
+            total_images += images.size(0)
+
+            # Calculate test loss
+            loss = criterion(outputs, masks)
+            total_test_loss += loss.item() * images.size(0)
+
+            # Select the class with the highest score for each pixel
+            predictions = outputs.argmax(dim=1)
+
+            # Calculate prostate metrics for every image in the batch
+            for i in range(predictions.shape[0]):
+                prediction = predictions[i].cpu().numpy()
+                ground_truth = masks[i].cpu().numpy()
+
+                metrics = calculate_prostate_metrics(
+                    prediction,
+                    ground_truth
+                )
+
+                if metrics is not None:
+                    prostate_results.append({
+                        "index": dataset_index,
+                        "filename": os.path.basename(
+                            data_loader.dataset.image_paths[dataset_index]
+                        ),
+                        **metrics
+                    })
+
+                dataset_index += 1
+
+            # Calculate metric counts for this batch
+            batch_intersections, batch_predicted, batch_actual = (
+                calculate_metrics(predictions, masks, num_classes)
+            )
+
+            # Accumulate counts across all batches
+            intersections += batch_intersections
+            predicted_totals += batch_predicted
+            actual_totals += batch_actual
+
+    # Calculate average forward-pass time per image
+    average_inference_time = (
+        total_inference_time / total_images
+        if total_images > 0 else 0.0
+    )
+
+    mean_hd95, failed_hd95 = save_prostate_results(
+        prostate_results,
+        model_name
+    )
+
+    # Calculate average test loss
+    average_test_loss = (
+        total_test_loss / total_images
+        if total_images > 0 else float("nan")
+    )
+
+    # Measure peak allocated GPU memory during evaluation
+    peak_vram = 0.0
+
+    if device.type == "cuda":
+        peak_vram = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
+
+    return (
+        intersections,
+        predicted_totals,
+        actual_totals,
+        average_inference_time,
+        average_test_loss,
+        peak_vram,
+        mean_hd95,
+        failed_hd95
+    )
