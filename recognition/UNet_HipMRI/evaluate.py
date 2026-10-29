@@ -370,3 +370,118 @@ def evaluate_model(model, data_loader, model_name):
         mean_hd95,
         failed_hd95
     )
+    
+def save_results(
+    results,
+    mean_dice,
+    mean_iou,
+    inference_time,
+    test_loss,
+    peak_vram,
+    mean_hd95,
+    failed_hd95,
+    output_path
+):
+    """Save segmentation scores and performance metrics to CSV."""
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, "w", newline="") as file:
+        writer = csv.writer(file)
+
+        writer.writerow(["metric", "value"])
+
+        # Save Dice and IoU for every segmentation class
+        for result in results:
+            class_id = result["class_id"]
+
+            writer.writerow([
+                f"class_{class_id}_dice",
+                result["dice"]
+            ])
+
+            writer.writerow([
+                f"class_{class_id}_iou",
+                result["iou"]
+            ])
+
+        # Save mean foreground segmentation performance
+        writer.writerow(["mean_foreground_dice", mean_dice])
+        writer.writerow(["mean_foreground_iou", mean_iou])
+
+        # Save computational efficiency and test loss
+        writer.writerow(["test_loss", test_loss])
+        writer.writerow(["inference_seconds_per_image", inference_time])
+        writer.writerow(["peak_inference_vram_gb", peak_vram])
+
+        # Save prostate boundary accuracy
+        writer.writerow(["mean_hd95_pixels", mean_hd95])
+        writer.writerow(["undefined_hd95_cases", failed_hd95])
+
+
+if __name__ == "__main__":
+
+    models = {
+        "baseline": "checkpoints/unet_baseline_best.pth",
+        "improved": "checkpoints/unet_improved_best.pth"
+    }
+
+    if len(sys.argv) != 2 or sys.argv[1] not in models:
+        raise ValueError("Usage: python evaluate.py baseline|improved")
+
+    model_type = sys.argv[1]
+    checkpoint_path = models[model_type]
+
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+
+    print(f"\nEvaluating {model_type} U-Net")
+
+    model = load_model(model_type, checkpoint_path)
+
+    (
+        intersections,
+        predicted_totals,
+        actual_totals,
+        inference_time,
+        test_loss,
+        peak_vram,
+        mean_hd95,
+        failed_hd95
+    ) = evaluate_model(model, test_loader, model_type)
+
+    # Convert accumulated pixel counts into Dice and IoU scores
+    results = calculate_scores(
+        intersections,
+        predicted_totals,
+        actual_totals
+    )
+
+    mean_dice, mean_iou = calculate_mean_foreground(results)
+
+    # Display segmentation performance for each class
+    for result in results:
+        print(
+            f"Class {result['class_id']}: "
+            f"Dice = {result['dice']:.4f}, "
+            f"IoU = {result['iou']:.4f}"
+        )
+
+    print(f"Mean foreground Dice: {mean_dice:.4f}")
+    print(f"Mean foreground IoU: {mean_iou:.4f}")
+    print(f"Test Loss: {test_loss:.5f}")
+    print(f"Average inference time: {inference_time:.6f} seconds")
+    print(f"Peak Inference VRAM: {peak_vram:.4f} GB")
+
+    # Save final evaluation results
+    save_results(
+        results,
+        mean_dice,
+        mean_iou,
+        inference_time,
+        test_loss,
+        peak_vram,
+        mean_hd95,
+        failed_hd95,
+        f"results/{model_type}_evaluation.csv"
+    )
