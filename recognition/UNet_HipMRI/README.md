@@ -2,9 +2,9 @@
 
 COMP3710 Pattern Recognition
 
-Project 2: Segmentation: Anatomical Contouring and Radiotherapy Planning
-Selected model: 2D Improved U-Net 
-Baseline: Standard 2D U-Net
+**Project 2**: Segmentation: Anatomical Contouring and Radiotherapy Planning
+**Selected model**: 2D Improved U-Net 
+**Baseline**: Standard 2D U-Net
 
 ## Overview
 
@@ -12,21 +12,15 @@ This project investigates automated anatomical segmentation of MRI images using 
 
 ## Data and preprocessing
 
-The project used the HipMRI dataset (Dowling et al., 2015), consisting of two-dimensional MRI slices of the male pelvis and their corresponding anatomical segmentation masks. The dataset was provided in NIfTI format (.nii.gz) through the `keras_slices_data` directory. Each segmentation mask contains integer labels representing six classes, including the background and five anatomical structures relevant to prostate radiotherapy planning.
+The project used the HipMRI dataset (Dowling et al., 2015), consisting of two-dimensional MRI slices of the male pelvis and their corresponding segmentation masks. The dataset was provided in NIfTI format (.nii.gz) through the `keras_slices_data` directory. Each segmentation mask contains integer labels representing six classes, including the background and five anatomical structures relevant to prostate radiotherapy planning.
 
-Dai et al. (2022) identify six segmentation classes in the HipMRI dataset: background (1), bladder (2), body (3), bone (4), rectum (5) and prostate (6). Examination of the provided segmentation masks revealed stored label values ranging from 0 to 5, suggesting a zero-based indexing scheme. Based on the class ordering reported by Dai et al. (2022), the corresponding labels were interpreted as background (0), bladder (1), body (2), bone (3), rectum (4) and prostate (5). This interpretation was further supported by visual inspection of segmentation overlays and consultation with an MRI specialist, providing additional confidence that label 5 represents the prostate.
-
-The data training, validation and test sets were used with a check that patient IDs do not ovrelap. Image intensity normalisation was applied during preprocessing to standardise the input values. Initial model found that the model was overfitting, to improve this augmenetation was introduced in the dataset.
+Examination of the provided segmentation masks revealed stored label values ranging from 0 to 5, suggesting a zero-based indexing scheme. Based on the classes reported by Dai et al. (2022), the corresponding labels were interpreted as background (0), body (1), bone (2), bladder (3), rectum (4) and prostate (5). This interpretation was further supported by visual inspection of segmentation overlays and consultation with an MRI specialist.
 
 ### Dataset exploration and verification
 
-Before model training, the dataset was investigated to understand its structure, label distribution and suitability for segmentation. This included examining MRI dimensions, intensity ranges, segmentation mask values and the correspondence between MRI images and their ground-truth masks. Visualisations of the anatomical labels were also examined to verify the interpretation of the segmentation classes.
-The dataset loader uses the MRI filenames to pair images with their corresponding masks. Patient-level separation is checked before training to reduce leakage between splits. MRI images and segmentation masks were matched using the patient ID, week and slice number encoded in their filenames.
-Patient IDs were compared across the three predefined splits to check for data leakage. No overlapping patient IDs were identified. Patient-level leakage, MRI–mask pairing, spatial alignment, image dimensions, valid pixel values, valid segmentation labels were teseted. All 12,660 MRI-mask pairs passed the dataset inspection checks.
+Before model training, the dataset was investigated to understand its structure, label distribution and suitability for segmentation. This included examining MRI dimensions, intensity ranges, image–mask pairing, spatial alignment and patient overlap. Visualisations of the anatomical labels were also examined to verify the interpretation of the segmentation classes.
 
-The dataset contains segmentation masks with integer labels ranging from 0 to 5, representing six anatomical classes. The data loader supports optional one-hot encoding, which converts each pixel into a six-channel binary representation, with a value of 1 assigned to the corresponding class channel and 0 to all others. This functionality was implemented and tested during dataset verification.
-
-However, one-hot encoding was disabled during training because both models use PyTorch's multiclass cross-entropy loss, which directly accepts integer class labels. Therefore, the original integer masks were retained during training to avoid unnecessary conversion while maintaining compatibility with the loss function.
+The data loader pairs images and masks using the patient, week and slice identifiers in their filenames. It checks that image and mask dimensions match and compares their NIfTI affine matrices. The dataset audit also checks that patient identifiers do not occur across different splits.
 
 The dataset split is below.
 
@@ -40,7 +34,9 @@ The dataset split is below.
 
 Although the test set contains 540 MRI slices, these originate from only three patients, which limits how confidently the results can be generalised to a wider patient population.
 
-Class imbalance was identified as an important consideration because anatomical structures occupy different proportions of the MRI images. Dai et al. (2022) similarly report substantial class imbalance in the pelvic MRI dataset, with approximately 270 times more background voxels than prostate voxels. This is particularly relevant because the prostate is the primary structure of interest, and its relatively small size can make accurate segmentation more challenging.
+### Class distribution
+
+Class imbalance was identified as an important consideration because anatomical structures occupy different proportions of the MRI images. Dai et al. (2022) similarly reported substantial class imbalance in the pelvic MRI dataset, with approximately 270 times more background voxels than prostate voxels. This is  relevant because the prostate is the primary structure of interest, and its relatively small size can make accurate segmentation more challenging.
 
 The class imbalance was assed as
 
@@ -53,10 +49,16 @@ The class imbalance was assed as
 | Class 4 | 1,340,454 | 0.32% |
 | Class 5 | 1,599,295 | 0.38% |
 
-The dataset exhibits substantial class imbalance, with Class 1 accounting for 60.05% of all pixels, while the prostate (Class 5) represents only 0.38%. This imbalance presents a challenge for segmentation, as the models may favour more frequently occurring classes. Therefore, prostate-specific Dice and IoU scores are reported alongside overall segmentation performance to assess how effectively each model segments the target anatomy.
+The dataset exhibits substantial class imbalance, with Class 1 (body) accounting for 60.05% of all pixels, while the prostate (Class 5) represents only 0.38%. This imbalance may make the prostate harder to learn. Therefore, prostate-specific Dice and IoU scores are reported alongside overall segmentation performance to assess how effectively each model segments prostate.
 
-Both the baseline U-Net and Improved U-Net used the same dataset partitions and preprocessing pipeline to ensure a consistent experimental comparison.
+### Preprocessing and Augmentation
 
+- **Intensity normalisation:** Each MRI slice is standardised using its mean and standard deviation for consistent intensity scaling.
+- **Image padding:** MRI slices and their corresponding masks are padded to 256 × 144 pixels to maintain spatial alignment.
+- **Optional one-hot encoding:** The dataset loader supports converting segmentation masks into six one-hot channels. Integer class labels are used during training with multiclass cross-entropy loss.
+- **Training augmentation:** Random rotations, translations and intensity scaling are applied during training. Spatial transformations use bilinear interpolation for MRI images and nearest-neighbour interpolation for masks. Augmentation is disabled for validation and testing.
+
+Augmentation was introduced after initial training suggested overfitting; this is a mitigation rather than proof that overfitting was eliminated.
 
 ## MODELS
 
