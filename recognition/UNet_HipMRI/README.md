@@ -3,7 +3,9 @@
 COMP3710 Pattern Recognition
 
 **Project 2**: Segmentation: Anatomical Contouring and Radiotherapy Planning
+
 **Selected model**: 2D Improved U-Net 
+
 **Baseline**: Standard 2D U-Net
 
 ## Overview
@@ -64,17 +66,18 @@ Augmentation was introduced after initial training suggested overfitting; this i
 
 ### Standard 2D U-Net
 
-The baseline model follows the standard U-Net architecture proposed by Ronneberger et al. (2015), as illustrated below. Additional guidance on the architecture and its implementation was obtained from Ito Aramendia (2024), while the PyTorch implementation by Milesial (2021) was used as a reference for developing the model's components.
+The baseline model follows the standard U-Net architecture proposed by Ronneberger et al. (2015). Ito Aramendia (2024) provided further guidance on the model architecture and implementation, while Milesial’s (2021) PyTorch implementation was used as a reference when developing the model components.
 
 ![Standard 2D U-Net](2d-unet.png)
 
-The encoder consists of five stages, progressively increasing the number of feature channels from 64 to 1024. Each stage applies two 3×3 convolutions followed by ReLU activation, with 2×2 max pooling used between stages to reduce spatial resolution. This allows the network to capture both low-level image features, such as edges and textures, and higher-level anatomical information.
+The encoder consists of five stages, increasing the number of feature channels from 64 to 1024. Each stage applies two 3×3 convolutions followed by ReLU activation, with 2×2 max pooling used between stages.
 
-The decoder consists of four upsampling stages, progressively reducing the number of feature channels from 1024 to 64. Each stage uses a transposed convolution to increase spatial resolution. Skip connections concatenate feature maps from corresponding encoder stages with decoder features, helping recover spatial details lost during downsampling and improving the localisation of anatomical boundaries.
+The decoder has four stages using transposed convolutions for upsampling, reducing the number of feature channels from 1024 to 64. Features from matching encoder stages are concatenated with decoder features through skip connections, followed by double-convolution blocks. A final 1 × 1 convolution maps 64 features to six class logits.
 
-The implementation makes two main adaptations to the original U-Net architecture:
+The implementation makes two main adaptations to the original U-Net architecture by Ronneberger et al. (2015):
 
-- **Padding:** The 3×3 convolutions use one-pixel padding to preserve spatial dimensions, avoiding the cropping required by the original U-Net's unpadded convolutions for appropriately sized inputs.
+- **Padding:** The 3×3 convolutions use one-pixel padding to preserve spatial dimensions, avoiding the cropping required by the original U-Net's unpadded convolutions.
+
 - **Input and output channels:** The network accepts a single-channel MRI slice and produces six output channels, corresponding to the background and five anatomical segmentation classes.
 
 These adaptations allow the standard U-Net architecture to be applied to the HipMRI dataset while retaining its original encoder–decoder structure.
@@ -82,30 +85,31 @@ These adaptations allow the standard U-Net architecture to be applied to the Hip
 
 ### Improved 2D U-Net
 
-The improved model is adapted from the modified U-Net architecture proposed by Isensee et al. (2018), originally developed for 3D brain tumour segmentation. The architecture has been adapted to use 2D convolutions for segmentation of the HipMRI dataset. The model was inspired by the code of Isensee (2018) The architecture is shown below.
+The improved model is adapted from the modified U-Net architecture proposed by Isensee et al. (2018), originally developed for 3D brain tumour segmentation. The architecture has been adapted to use 2D convolutions for segmentation of the HipMRI dataset. The model was inspired by the BraTS2017 architecture code (Isensee, 2018).
 
 ![Improved 2D U-Net](improved-2d-unet.png)
 
-The encoder consists of five stages, progressively increasing the number of feature channels from 8 to 128. Unlike the baseline U-Net, which uses max pooling, the improved model uses stride-2 convolutions to reduce spatial resolution. Each stage incorporates residual connections, allowing features to bypass intermediate convolutional layers. The model also uses instance normalisation, LeakyReLU activation and dropout (p = 0.3) to support feature learning and regularisation.
+The encoder consists of five stages, increasing the number of feature channels from 8 to 128. Unlike the baseline U-Net, which uses max pooling, the improved model uses stride-2 convolutions for downsampling. Residual context blocks incorporate instance normalisation, LeakyReLU activations (negative slope 0.01) and dropout (p = 0.3).
 
-The decoder consists of four upsampling stages, progressively reducing the number of feature channels from 128 to 8. Instead of transposed convolutions, the model uses nearest-neighbour upsampling followed by 3×3 convolutions. Skip connections concatenate features from corresponding encoder stages with the upsampled decoder features. Localisation blocks then refine the combined features using 3×3 and 1×1 convolutions.
+The decoder consists of four upsampling stages, progressively reducing the number of feature channels from 128 to 8. It uses nearest-neighbour upsampling followed by convolution instead of transposed convolutions. Skip connections concatenate corresponding encoder features with the upsampled decoder features, which are then refined using localisation blocks.
 
-The improved model also incorporates deep supervision, using additional segmentation prediction layers at intermediate decoder stages. These predictions are upsampled and combined with the final segmentation output through element-wise addition.
-
+The model also includes two intermediate segmentation prediction heads. Their outputs are upsampled and combined with the final segmentation logits through element-wise addition. A final 1×1 convolution produces six output channels corresponding to the six segmentation classes.
 Finally, a 1×1 convolution produces six output channels corresponding to the background and five anatomical segmentation classes.
 
-These modifications aim to improve feature learning and segmentation accuracy while retaining the encoder–decoder structure of U-Net.
+The implementation makes several adaptations from Isensee et al. (2018):
 
-The implementation makes several adaptations to the original architecture proposed by Isensee et al. (2018):
+- **2D adaptation:** Uses 2D convolutions to process individual MRI slices rather than 3D convolutions for volumetric segmentation.
 
-- **2D adaptation:**: The original architecture uses 3D convolutions for volumetric MRI segmentation, whereas this implementation uses 2D convolutions to process individual MRI slices.
+- **Feature channels:** Uses 8–128 channels to reduce model size and computational requirements.
 
-- **Feature channels:** The number of feature channels is reduced to 8–128 to lower memory usage and computational requirements.
-
-- **Input and output channels:** The model accepts single-channel MRI slices instead of multi-modal 3D MRI inputs and produces six output channels corresponding to the background and five anatomical segmentation classes.
+- **Input and output channels:** Accepts single-channel MRI slices and produces six segmentation output channels.
 
 ## Training procedure
-Both the baseline 2D U-Net and improved 2D U-Net were trained using the HipMRI dataset, with the same training and validation splits to ensure a consistent comparison. Both models used the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. Training was conducted for 40 epochs on an NVIDIA A100 GPU using Rangpur, with the training and validation losses monitored after each epoch to assess model convergence and potential overfitting. The model checkpoint achieving the highest validation Dice similarity coefficient (DSC) was saved for subsequent evaluation. By keeping the dataset splits, loss function and training hyperparameters consistent, the experiment aims to evaluate the effect of the architectural differences on segmentation performance.
+Both the baseline 2D U-Net and improved 2D U-Net were trained on the HipMRI dataset, using identical training and validation splits to ensure a consistent comparison. Both models train using the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. 
+
+Training was conducted for 40 epochs on an NVIDIA A100 GPU using Rangpur, with the training and validation losses monitored after each epoch to assess model convergence and potential overfitting. The model checkpoint achieving the highest validation Dice similarity coefficient (DSC) was saved for subsequent evaluation. 
+
+By maintaining consistent dataset splits, loss function and training hyperparameters consistent, the experiment aims to evaluate the effect of the architectural differences on segmentation performance.
 
 ### Training results
 
@@ -117,15 +121,38 @@ Both the baseline 2D U-Net and improved 2D U-Net were trained using the HipMRI d
 | Parameters | 31,030,918 | 796,026 |
 | Peak training VRAM | 1.074 GB | 0.225 GB |
 
-
 Both runs were below the project's proposed 8-hour training and 12 GB GPU-memory limits. The Improved U-Net used approximately 39 times fewer parameters.
 
+The Standard U-Net achieved
+its highest validation Dice of 0.9103 at epoch 6, while the Improved
+U-Net achieved 0.9077 at epoch 14.
+
+**Standard U-Net**
+
+![Standard U-Net Training and Validation Loss](results/baseline_loss.png)
+
+![Standard U-Net Validation Dice](results/baseline_dice.png)
+
+**Improved U-Net**
+
+![Improved U-Net Training and Validation Loss](results/improved_loss.png)
+
+![Improved U-Net Validation Dice](results/improved_dice.png)
+
+Both models showed decreasing training losses throughout the 40 epochs, indicating they continued learning on the training data. However, validation losses fluctuated and generally increased during later epochs, suggesting potential overfitting. These fluctuations were more pronounced in the Standard U-Net, particularly in its validation loss and Dice scores.
+
+The Standard U-Net achieved a slightly higher peak validation Dice (0.9103) at epoch 6 compared with the Improved U-Net (0.9077) at epoch 14. While the Standard U-Net maintained relatively consistent validation Dice scores overall, it experienced several sharp drops. In contrast, the Improved U-Net showed a more gradual improvement during the early epochs, followed by relatively stable validation Dice scores with smaller fluctuations.
+
+For both models, the checkpoint achieving the highest validation Dice was selected for final evaluation rather.
+
 ## Evaluation Procedure
-Both models were evaluated using their best saved checkpoints on the held-out HipMRI test set. Segmentation accuracy was assessed using the Dice similarity coefficient (DSC) and Intersection over Union (IoU) for each of the six segmentation classes, alongside the mean foreground Dice and IoU scores, excluding the background class.
+Segmentation accuracy was assessed using the DSC and Intersection over Union (IoU) for each of the six segmentation classes. Mean foreground Dice and IoU scores were also calculated, excluding the background class.
 
-Additional analysis focused on the target prostate class, measuring per-slice Dice, IoU and 95th percentile Hausdorff distance (HD95) to assess segmentation overlap and boundary accuracy. To investigate regional performance, slices containing the target structure were grouped into three regions representing the two ends and central portion of the prostate. Inter-slice consistency was also examined by measuring changes in predicted segmentation area between adjacent slices.
+Additional analysis focused on the prostate class, measuring per-slice Dice, IoU and 95th percentile Hausdorff distance (HD95) to assess segmentation overlap and boundary accuracy. To investigate regional performance, prostate-containing slices were divided into three regions representing the two ends and central portion of the prostate. Inter-slice consistency was also examined by measuring changes in predicted segmentation area between adjacent slices.
 
-Segmentation failures were further investigated by identifying additional disconnected components and generating visual comparisons of MRI images, ground-truth masks and model predictions, including false-positive and false-negative overlays. Finally, inference time, peak GPU memory usage and model parameter counts were examined to compare computational efficiency.
+Segmentation failures were further investigated by identifying disconnected prediction components and generating visual comparisons of MRI images, ground-truth masks and model predictions, including false-positive and false-negative overlays.
+
+Inference time, peak GPU memory usage and model parameter counts were examined to compare the computational efficiency of both models.
 
 ## Results
 
