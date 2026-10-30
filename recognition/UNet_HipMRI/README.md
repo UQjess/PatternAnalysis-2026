@@ -246,3 +246,147 @@ The failure-case analysis further demonstrated that satisfactory overall Dice sc
 For a practical radiotherapy contouring assistant, the baseline U-Net is therefore recommended under the tested conditions. The Improved U-Net may be considered when computational resources are severely constrained, but its reduced segmentation accuracy must be considered. Neither model has been sufficiently validated for autonomous clinical use, and predictions involving uncertain boundaries, missing prostate tissue or disconnected regions would require specialist review and correction.
 
 Future work could investigate uncertainty estimation, segmentation post-processing, broader patient-level validation and 3D architectures that incorporate inter-slice continuity to improve anatomical consistency.
+
+Reproducibility
+
+The experiments were conducted using Python and PyTorch on an NVIDIA A100 GPU through the UQ Rangpur computing environment. The experiemnt was also tested on an NVIDIA RTX3060 and can be run on it Both models were trained and evaluated using the same patient-level dataset splits. A fixed random seed was used during training to improve reproducibility and reduce variation caused by random weight initialisation, data shuffling and augmentation. Both models used the same seed to support a consistent experimental comparison. However, exact reproducibility is not guaranteed because some GPU operations may be nondeterministic.
+
+1. Environment setup
+
+Install the required Python dependencies:
+
+pip install -r requirements.txt
+
+2. Dataset setup
+
+The HipMRI dataset was provided through the course and is not included in this repository.
+
+The dataset should contain the following directories:
+
+keras_slices_data/
+├── keras_slices_train/
+├── seg_train/
+├── keras_slices_validate/
+├── seg_validate/
+├── keras_slices_test/
+└── seg_test/
+
+Update the dataset path in dataset.py to match the local location of keras_slices_data.
+
+3. Model training
+
+Train the standard 2D U-Net:
+
+python train.py
+
+Train the Improved 2D U-Net:
+
+python train_improved.py
+
+The checkpoints with the highest validation Dice scores are saved as:
+
+checkpoints/unet_baseline_best.pth
+checkpoints/unet_improved_best.pth
+
+4. Model evaluation
+
+Evaluate both trained models on the held-out test set:
+
+python evaluate.py
+
+The evaluation calculates segmentation performance, including per-class Dice, IoU, prostate HD95 and computational measurements.
+
+5. Regional and failure-case analysis
+
+Generate the regional prostate analysis:
+
+python regional_analysis.py
+
+Generate segmentation comparisons and failure-case visualisations:
+
+python predict.py
+python generate_selected_failures.py
+
+These analyses compare the models' predictions against ground-truth prostate masks and investigate boundary errors, under-contouring, disconnected predictions and complete segmentation failures.
+
+6. Reproducing the reported results
+
+The reported results were obtained using the best validation checkpoints for both models.
+
+The same dataset splits, preprocessing procedures and evaluation methods should be maintained when reproducing the experiments.
+
+Training results may vary depending on the hardware, software versions and random initialisation. The original MRI dataset and trained model checkpoints are not included in the repository.
+
+
+## Feasibility Review
+
+1. User Need, Scope & Acceptance Criteria
+The intended users are radiotherapy imaging specialists who outline the prostate and nearby organs on MRI scans. This project proposes a 2D segmentation assistant that generates anatomical contours. The engineering dilemma is whether a 2D Improved U-Net improves prostate segmentation, particularly at the base and apex, compared with a standard 2D U-Net while maintaining reasonable computational costs.
+Acceptance criteria:
+1.	Segmentation accuracy: Achieve a prostate DSC of at least 0.75 on the held-out test set and report per-class Dice and IoU.
+2.	Regional performance: Compare prostate DSC across base, central and apex slices, after checking which slices correspond to each region.
+3.	Failure analysis: Examine 3–5 boundary failure cases through MRI images, ground truth, predictions and false-positive/false-negative overlays, identifying leakage, under-contouring and disconnected artifacts. 
+4.	Usability assessment: Compare segmentation errors between both models and identify cases where predicted contours still require substantial specialist correction.
+5.	Computational feasibility: Train both models within the local GPU’s 12 GB VRAM capacity. Measure peak GPU memory, parameter count and inference time per 2D slice under identical evaluation conditions and assess the accuracy–cost trade-off. 
+2. Model Choice & Course Concepts
+The selected model is the 2D Improved U-Net using the HipMRI 2D slice dataset. A standard 2D U-Net will be used as the comparison baseline. Both models will use the same patient-separated splits and evaluation procedure.
+The standard U-Net uses an encoder-decoder architecture with convolutional layers and skip connections to extract image features and reconstruct segmentation masks. The Improved U-Net replaces standard convolutional blocks with residual blocks, introducing shortcut connections that allow features to bypass convolutional layers. These connections are intended to improve gradient propagation and feature learning, potentially improving segmentation of challenging prostate boundaries, particularly at the base and apex.
+The approach applies course concepts including convolutional neural networks, feature extraction, backpropagation, optimisation, segmentation loss functions and quantitative model evaluation. 
+3. Preliminary Feasibility Evidence
+An initial audit of the HipMRI 2D dataset identified 12,660 paired MRI slices and segmentation masks, comprising 11,460 training, 660 validation and 540 test pairs. Image dimensions were either 256 × 128 or 256 × 144, with segmentation labels ranging from 0 to 5. All pairs passed the implemented pairing and dimension. No patient overlap was detected between the dataset splits based on patient identifiers in the filenames.
+Local GPU testing was conducted using an NVIDIA RTX 3060 with 12 GB VRAM. A prototype residual U-Net completed a forward pass, loss calculation, backward pass and optimiser update using synthetic inputs of shape 4 × 1 × 256 × 256. The measured training step took 0.023 seconds, with 0.282 GB peak PyTorch allocated GPU memory. These results support initial execution feasibility, however real-data training costs and segmentation accuracy remain untested.
+4. Risks, Budget & Fallback
+The main technical risks are class imbalance, inaccurate segmentation at the prostate base and apex, disconnected predictions and inconsistent segmentation between slices. Patient separation and image–mask alignment must be preserved throughout preprocessing.
+Local training will be prioritised within the 12 GB VRAM budget, with the university Virtual GPU Lab and Rangpur A100 available if required. The next experiment will confirm anatomical label mapping, implement intensity normalisation and aligned image–mask preprocessing, and train the standard U-Net baseline while recording validation DSC, memory usage and epoch time. Validation data will guide model selection and the test set will be reserved for final evaluation.
+If the Improved U-Net underperforms, preprocessing, loss functions and training settings will be investigated using validation data with the standard U-Net remaining a fallback. The final recommendation will report observed benefits, failures and computational trade-offs.
+
+## References
+
+Dai, W., Woo, B., Liu, S., Marques, M., Engstrom, C., Greer, P. B., Crozier, S., Dowling, J. A., & Chandra, S. S. (2022). CAN3D: Fast 3D medical image segmentation via compact context aggregation. *Medical Image Analysis, 82*, Article 102562. https://doi.org/10.1016/j.media.2022.102562
+
+Dowling, J. A., Sun, J., Pichler, P., Rivest-Hénault, D., Ghose, S., Richardson, H., Wratten, C., Martin, J., Arm, J., Best, L., Chandra, S. S., Fripp, J., Menk, F. W., & Greer, P. B. (2015). Automatic substitute CT generation and contouring for MRI-alone external beam radiation therapy from standard MRI sequences. *International Journal of Radiation Oncology, Biology, Physics, 93*(5), 1144–1153. https://doi.org/10.1016/j.ijrobp.2015.08.045
+
+Isensee, F. (2018). *network_architecture.py* [Source code]. GitHub. https://github.com/MIC-DKFZ/BraTS2017/blob/master/network_architecture.py
+
+Ito Aramendia, A. (2024, February 1). *The U-Net: A complete guide*. Medium. https://medium.com/@alejandro.itoaramendia/decoding-the-u-net-a-complete-guide-810b1c6d56d8
+
+Milesial. (2021). *unet_parts.py* [Python source code]. GitHub. https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_parts.py
+
+OpenAI. (2026). *ChatGPT* [Large language model]. https://chatgpt.com/
+
+Ronneberger, O., Fischer, P., & Brox, T. (2015). U-Net: Convolutional networks for biomedical image segmentation. In N. Navab, J. Hornegger, W. M. Wells, & A. F. Frangi (Eds.), *Medical image computing and computer-assisted intervention – MICCAI 2015* (Lecture Notes in Computer Science, Vol. 9351, pp. 234–241). Springer. https://doi.org/10.1007/978-3-319-24574-4_28
+
+
+## AI Usage Disclosure
+
+OpenAI's ChatGPT (2026) was used throughout this project to provide technical guidance, code development assistance, debugging support, experimental analysis and documentation assistance.
+
+AI assistance included the following areas:
+
+- **Project planning and model development:** Guidance on interpreting the project requirements. ChatGPT assisted with understanding and implementing architectural components.
+
+- **Dataset loading and preprocessing:** Assistance with developing and reviewing `dataset.py`, including loading NIfTI MRI images and segmentation masks, matching image–mask filenames, verifying dataset splits, checking spatial alignment, normalising image intensities and applying data augmentation.
+
+- **Model implementation and training:** Guidance on developing and debugging the baseline and Improved U-Net architectures, training scripts, loss functions, optimisation procedures, checkpoint saving and GPU execution. ChatGPT also assisted with reviewing code for correctness and identifying potential implementation issues.
+
+- **MRI visualisation and plotting:** Assistance with writing Python code to generate MRI visualisations, segmentation-mask overlays, anatomical label comparisons and prediction comparison figures. 
+
+- **Model evaluation:** Assistance with developing and reviewing `evaluate.py`, including calculating Dice similarity coefficients, Intersection over Union (IoU), Hausdorff distance (HD95), inference time, GPU memory usage and model parameter counts.
+
+- **Regional and anatomical analysis:** Guidance on developing `regional_analysis.py`, verifying MRI anatomical orientation, dividing the prostate into approximate apex, mid-gland and base regions, calculating regional segmentation metrics and examining inter-slice consistency and disconnected segmentation components.
+
+- **Prediction and failure-case analysis:** Assistance with developing and reviewing `predict.py` and `generate_selected_failures.py` to generate model predictions, compare them with ground-truth masks, identify challenging segmentation cases and produce visualisations of false-positive and false-negative errors. ChatGPT also assisted with interpreting under-contouring, boundary inaccuracies, disconnected predictions and complete prostate segmentation failures.
+
+- **Results processing and CSV generation:** Helped with calculating summary statistics and saving results to CSV files.
+
+- **Documentation and interpretation:** Assistance with refining and writing the README and interpretting results
+
+### Verification of AI-Assisted Work
+
+AI-assisted code and recommendations were critically reviewed rather than accepted without verification. This involved examining the logic of generated code, researching unfamiliar concepts to understand their purpose and checking whether suggested implementations were appropriate for the project. Additional tests were developed and executed to verify code functionality, identify errors and confirm that the outputs were consistent with expectations.
+
+For example, the anatomical class labels suggested during development were verified against the actual HipMRI dataset by inspecting segmentation-mask values and visualising the corresponding anatomical structures, rather than relying solely on AI-generated explanations. Dataset integrity was also checked through image–mask pairing, spatial alignment verification and patient-level split checks.
+
+Model implementations and evaluation scripts were reviewed and tested to confirm that they operated as intended. Quantitative results were obtained by executing the training and evaluation scripts on the HipMRI dataset. Generated MRI visualisations, segmentation predictions and failure-case analyses were examined against ground-truth masks to assess their validity.
+
+AI was used to support implementation, problem-solving and analysis, while the generated suggestions were evaluated through independent research, code inspection and experimental testing. The final implementation, results and conclusions were reviewed by the author.
