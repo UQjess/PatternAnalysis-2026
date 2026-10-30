@@ -3,7 +3,10 @@ import torch.nn as nn
 from modules import DoubleConv, Down, Up, OutConv
 
 class UNet(nn.Module):
-    """Standard 2D U-Net for multi-class MRI segmentation."""
+    """Standard 2D U-Net for multi-class MRI segmentation. 
+        Based on the U-Net architecture proposed by
+        Ronneberger et al. (2015)
+    """
 
     def __init__(self, in_channels=1, num_classes=6):
         super().__init__()

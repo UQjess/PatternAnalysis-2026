@@ -9,7 +9,10 @@ from modules import (
 )
 
 class ImprovedUNet(nn.Module):
-    """Improved 2D U-Net for MRI segmentation."""
+    """Improved 2D U-Net for MRI segmentation.
+        Inspired by the segmentation architecture described
+        by Isensee et al. (2018)
+    """
 
     def __init__(self, in_channels=1, num_classes=6):
         super().__init__()
