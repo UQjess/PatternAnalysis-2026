@@ -44,7 +44,7 @@ class ImprovedUNet(nn.Module):
         # Final segmentation prediction
         self.out_conv = nn.Conv2d(16, num_classes, kernel_size=1)
 
-        # Deep supervision heads
+        # Auxiliary segmentation heads for multi-scale prediction fusion
         self.aux3 = nn.Conv2d(64, num_classes, kernel_size=1)
         self.aux2 = nn.Conv2d(32, num_classes, kernel_size=1)
 
@@ -81,7 +81,7 @@ class ImprovedUNet(nn.Module):
         d1 = torch.cat((d1, skip1), dim=1)
         d1 = self.local1(d1)
 
-        # Deep supervision
+        # Multi-scale prediction fusion
 
         # Intermediate prediction from level 3
         ds2 = self.aux3(ds2_features)
@@ -103,7 +103,7 @@ class ImprovedUNet(nn.Module):
         # Final prediction
         out = self.out_conv(d1)
 
-        # Add deep supervision predictions
+        # Combine auxiliary predictions with the final segmentation logits
         out = out + combined
 
         return out
