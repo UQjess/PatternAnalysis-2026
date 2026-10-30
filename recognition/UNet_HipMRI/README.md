@@ -105,7 +105,7 @@ The implementation makes several adaptations from Isensee et al. (2018):
 - **Input and output channels:** Accepts single-channel MRI slices and produces six segmentation output channels.
 
 ## Training procedure
-Both the baseline 2D U-Net and improved 2D U-Net were trained on the HipMRI dataset, using identical training and validation splits to ensure a consistent comparison. Both models train using the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. 
+Rather than reproducing the original training configurations of each architecture, a consistent training procedure was adopted to support a fair comparison. Both the baseline 2D U-Net and improved 2D U-Net were trained on the HipMRI dataset, using identical training and validation splits to ensure a consistent comparison. Both models train using the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. 
 
 Training was conducted for 40 epochs on an NVIDIA A100 GPU using Rangpur, with the training and validation losses monitored after each epoch to assess model convergence and potential overfitting. The model checkpoint achieving the highest validation Dice similarity coefficient (DSC) was saved for subsequent evaluation. 
 
@@ -156,7 +156,7 @@ Inference time, peak GPU memory usage and model parameter counts were examined t
 
 ## Results
 
-**Table 1. Per-class segmentation performance on the held-out HipMRI test set.**
+**Per-class segmentation performance on the held-out HipMRI test set.**
 
 | Class | Baseline Dice | Improved Dice | Baseline IoU | Improved IoU |
 |---|---:|---:|---:|---:|
@@ -165,15 +165,15 @@ Inference time, peak GPU memory usage and model parameter counts were examined t
 | 2 | 0.9415 | 0.9377 | 0.8895 | 0.8827 |
 | 3 | 0.9663 | 0.9620 | 0.9347 | 0.9269 |
 | 4 | 0.8431 | 0.8472 | 0.7287 | 0.7349 |
-| **5 (Prostate)** | **0.8563** | **0.8428** | **0.7487** | **0.7282** |
+| **5 (Prostate)** | **0.8563** |**0.8428** | **0.7487** | **0.7282** |
 
-**Table 2. Overall segmentation performance on the held-out HipMRI test set.**
+**Overall segmentation performance on the held-out HipMRI test set.**
 
 | Measure | Baseline U-Net | Improved U-Net |
 |---|---:|---:|
 | Mean foreground Dice (classes 1–5) | 0.9186 | 0.9148 |
 | Mean foreground IoU | 0.8547 | 0.8485 |
-| **Prostate Dice (class 5)** | **0.8563** | **0.8428** |
+| **Prostate Dice** | **0.8563** | **0.8428**|
 | Prostate IoU | 0.7487 | 0.7282 |
 | Mean finite prostate HD95 (pixels) | 3.23 | 3.56 |
 | Undefined prostate HD95 cases | 18 | 35 |
@@ -181,19 +181,18 @@ Inference time, peak GPU memory usage and model parameter counts were examined t
 | Inference time per image | 9.25 ms | 1.74 ms |
 | Peak inference VRAM | 0.421 GB | 0.062 GB |
 
-EVALUATE 
-Both models exceed the assessment's prostate Dice ≥ 0.75 target. The baseline is more accurate on the prostate and has a lower finite HD95; the improved model is substantially smaller and faster in the recorded inference run. Training and inference VRAM measurements refer to different stages and should not be compared interchangeably.
+The baseline U-Net achieved slightly higher overall segmentation performance, with a mean foreground Dice of 0.9186 and IoU of 0.8547, compared with 0.9148 and 0.8485 for the Improved U-Net. For the prostate class, the baseline achieved a Dice score of 0.8563 and IoU of 0.7487, compared with 0.8428 and 0.7282 for the Improved U-Net. Both models exceeded the project's target prostate Dice of 0.75.
 
-Both the baseline 2D U-Net and Improved 2D U-Net were evaluated on the held-out HipMRI test set. Table 1 presents the per-class Dice similarity coefficient (DSC) and Intersection over Union (IoU) for both models.
-
-The baseline U-Net achieved a mean foreground DSC of 0.9186 and IoU of 0.8547, compared with 0.9075 and 0.8378 for the Improved U-Net, respectively. For the target prostate class, the baseline achieved a DSC of 0.8563 and IoU of 0.7487, while the Improved U-Net achieved 0.8442 and 0.7304. Both models exceeded the predefined prostate DSC threshold of 0.75.
-
-The baseline achieved higher Dice and IoU scores across all foreground classes, with the largest Dice difference observed for the rectum (0.8431 versus 0.8077). The Improved U-Net achieved marginally higher background segmentation accuracy. The baseline also recorded a lower test loss of 0.04372 compared with 0.04884 for the Improved U-Net.
+The baseline achieved higher Dice and IoU scores for most foreground classes, while the Improved U-Net performed slightly better on Class 4. The baseline also achieved a lower mean finite prostate HD95 (3.23 pixels compared with 3.56 pixels), indicating better boundary agreement among cases with defined HD95 values. However, the Improved U-Net demonstrated greater computational efficiency, achieving an average inference time of 1.74 ms per image compared with 9.25 ms for the baseline, while also using less GPU memory.
 
 ### Regional prostate analysis
-Groups slices by patient and week and approximates apex, mid-gland, and base by dividing the ground-truth prostate's superior–inferior extent into thirds. These are approximate geometric regions, not clinically annotated anatomical subregions.
+To examine where segmentation is less reliable, the prostate was divided into approximate apex, mid-gland and base regions using thirds of its superior–inferior extent, identified from the ground-truth prostate masks.
 
-**Table 3. Regional prostate segmentation performance on the held-out HipMRI test set.**
+Anatomical orientation was verified using the original 3D HipMRI volumes and NiBabel. A Python verification script compared extracted 2D slices against their corresponding 3D volumes, confirming that the slices were coronal, with increasing column indices representing the superior direction. The verification was documented and repeated across 10 patient/week scans, with all 10 producing exact pixel matches.
+
+Therefore, lower column indices were classified as apex, middle indices as mid-gland and higher indices as base. These regions are approximate rather than independently annotated anatomical landmarks, so the findings remain exploratory. The verification and analysis process was conducted with assistance from OpenAI (2026).
+
+**Regional prostate segmentation performance on the held-out HipMRI test set.**
 
 | Region | Baseline Pooled Dice | Improved Pooled Dice |
 |---|---:|---:|
@@ -201,17 +200,14 @@ Groups slices by patient and week and approximates apex, mid-gland, and base by 
 | Mid-gland | 0.9102 | 0.8863 |
 | Base | 0.8401 | 0.8412 |
 
-*Note: Higher Dice and lower HD95 indicate better segmentation performance. Regional groups represent the first, middle and last portions of the slice sequence, not anatomically verified base and apex regions. Undefined HD95 values were excluded from the reported HD95 means.*
-egional segmentation performance was evaluated across 195 prostate-containing slices, grouped into the first, middle and last portions of the slice sequence. Table 3 presents the regional Dice similarity coefficients and 95th percentile Hausdorff distances (HD95).
+Both models achieved their highest regional Dice scores in the mid-gland, with the baseline U-Net scoring 0.9102 and the Improved U-Net scoring 0.8863. Performance was lower towards the apex and base regions, suggesting that segmentation is less reliable at the prostate's anatomical ends.
 
-Both models achieved their highest regional Dice scores in the middle third, with the baseline U-Net achieving 0.9026 and the Improved U-Net achieving 0.9025. Performance decreased towards both ends of the slice sequence.
+The baseline U-Net outperformed the Improved U-Net at the apex and mid-gland, while the improved U-Net performed marginally better at the base, although the difference was negligible.
 
-In the first third, the baseline achieved a higher Dice score of 0.6834 compared with 0.5489 for the Improved U-Net. However, the Improved U-Net achieved a slightly higher Dice score in the last third (0.6866 versus 0.6673).
+These findings suggest that the Improved U-Net did not consistently improve regional prostate segmentation. The lower Dice scores at the apex and base highlight potential difficulties in segmenting these regions, supporting the need for careful review of predictions near anatomical boundaries.
 
-Boundary accuracy followed a similar pattern, with both models recording their lowest HD95 values in the middle third. The baseline achieved a slightly lower HD95 in the first and middle thirds, whereas the Improved U-Net achieved a marginally lower HD95 in the last third.
-EVALUATE
 
-### Failure analysis
+### Failure case analysis
 
 
 ## Engineering interpretation and recommendation
