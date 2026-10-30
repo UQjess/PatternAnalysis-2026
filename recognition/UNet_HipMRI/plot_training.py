@@ -21,7 +21,8 @@ def plot_training_results(data, model_name, filename):
     best_dice = data.loc[best_index, "validation_dice"]
     
     # Graph 1: Training and Validation Loss
-    plt.figure()
+    plt.figure(figsize=(8, 5))
+
     plt.plot(epochs, train_losses, label="Training Loss")
     plt.plot(epochs, val_losses, label="Validation Loss")
 
@@ -35,7 +36,7 @@ def plot_training_results(data, model_name, filename):
     plt.close()
 
     # Graph 2: Validation Dice
-    plt.figure()
+    plt.figure(figsize=(8, 5))
     plt.plot(epochs, val_dices, label="Validation Dice")
 
     # Highlight the best epoch
@@ -51,7 +52,7 @@ def plot_training_results(data, model_name, filename):
     plt.title(f"{model_name}: Validation Dice")
     plt.legend()
 
-    plt.savefig(f"results/{filename}_dice.png", dpi=300)
+    plt.savefig(f"results/{filename}_dice.png")
     plt.show()
     plt.close()
 
