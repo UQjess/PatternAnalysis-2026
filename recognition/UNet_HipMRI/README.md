@@ -209,8 +209,40 @@ These findings suggest that the Improved U-Net did not consistently improve regi
 
 ### Failure case analysis
 
+The following five cases were selected from the held-out HipMRI test set to investigate prostate boundary errors, under-contouring, disconnected predictions and differences between the baseline and Improved U-Net. Each case was evaluated using Dice, IoU, HD95, false-positive and false-negative measurements, alongside visual comparisons of the MRI, ground truth, predictions and error overlays.
 
-## Engineering interpretation and recommendation
-The Improved U-Net reduces model size, training time, measured inference time, and memory use, but it does not improve prostate Dice or boundary accuracy in this experiment. The standard U-Net is therefore preferable when contour quality is the primary objective under the tested conditions. The Improved U-Net may be useful where compute or memory is severely constrained, but its additional failures require caution.
+**Approximate Apex Segmentation — case_040_week_0_slice_34**
+![Poor apex segmentation](results/failure_cases/failure_0028.png)
 
-Neither model is suitable for unsupervised clinical use based on these experiments. A practical annotation assistant should retain expert review, particularly for small prostate regions, uncertain boundaries, disconnected predictions, or absent predictions. Future work could investigate explicit uncertainty estimation, post-processing, stronger validation across patients, and 3D approaches that model inter-slice continuity.
+The baseline U-Net achieved a Dice score of 0.722, compared with 0.771 for the Improved U-Net. The Improved U-Net also achieved a lower HD95 (4.00 vs 4.47 pixels) and fewer false negatives (101 vs 146), although it produced more false positives (62 vs 30). This indicates that the Improved U-Net captured more prostate tissue in this case but introduced additional over-segmentation. The result demonstrates a trade-off between missing prostate tissue and including surrounding tissue.
+
+**Approximate Base Segmentation — case_040_week_0_slice_36**
+![Poor base segmentation](results/failure_cases/failure_0030.png)
+
+Both models struggled to segment the prostate accurately, with the baseline achieving a Dice score of 0.467 and the Improved U-Net only 0.094. The Improved U-Net also had substantially greater boundary disagreement, with HD95 increasing from 7.12 to 14.02 pixels. Its 251 false negatives indicate severe under-contouring, with most of the ground-truth prostate region missed. This case demonstrates that the Improved U-Net can produce significantly less reliable contours in challenging anatomical regions.
+
+**Under-Contouring — case_042_week_0_slice_17**
+![Under-Contouring](results/failure_cases/failure_0489.png)
+
+The baseline achieved a Dice score of 0.902, substantially outperforming the Improved U-Net's 0.703. The Improved U-Net produced 232 false negatives compared with 81 for the baseline, indicating that it excluded considerably more prostate tissue. Its HD95 was also higher (6.88 vs 3.16 pixels), demonstrating greater boundary disagreement. This highlights the risk of incomplete prostate contours despite reasonable overall model performance.
+
+**Disconnected Segmentation — case_042_week_0_slice_37**
+![Disconnected Segmentation](results/failure_cases/failure_0511.png)
+
+The Improved U-Net produced four disconnected prostate components, compared with one component for the baseline. Its Dice score was also considerably lower (0.251 vs 0.620), while HD95 increased from 7.25 to 8.00 pixels. The Improved U-Net generated more false positives (89 vs 44) and false negatives (228 vs 135), indicating both inaccurate tissue inclusion and substantial missing prostate tissue. This case demonstrates that segmentation errors can involve both poor boundary accuracy and anatomically implausible disconnected regions.
+
+
+**Complete Prostate Miss — case_040_week_4_slice_17**
+![Complete Prostate Miss](results/selected_failures/case_040_week_4_slice_17.png)
+
+The Improved U-Net completely failed to identify the prostate, achieving a Dice score of 0 with 115 false negatives and no false positives. The baseline performed better, achieving a Dice score of 0.570, although its segmentation remained inaccurate. This represents a severe failure in which the Improved U-Net produced no prostate contour despite prostate tissue being present in the ground truth. Such failures would make the prediction unsuitable for use without manual correction.
+
+## Engineering Interpretation and Recommendation
+
+The Improved U-Net reduced model size, training time, inference time and GPU memory usage compared with the baseline U-Net. However, these efficiency improvements did not translate into better overall prostate segmentation accuracy or boundary precision. The baseline achieved higher prostate Dice and lower mean finite HD95, making it the preferable model when segmentation quality is prioritised.
+
+The failure-case analysis further demonstrated that satisfactory overall Dice scores do not guarantee reliable predictions for individual MRI images. Both models experienced difficulties with challenging prostate regions, including inaccurate boundaries, under-contouring and disconnected predictions. The Improved U-Net performed better in one selected apex-related case but exhibited more severe failures in several others, including a complete prostate miss. These findings indicate that its computational advantages come with a trade-off in segmentation reliability.
+
+For a practical radiotherapy contouring assistant, the baseline U-Net is therefore recommended under the tested conditions. The Improved U-Net may be considered when computational resources are severely constrained, but its reduced segmentation accuracy must be considered. Neither model has been sufficiently validated for autonomous clinical use, and predictions involving uncertain boundaries, missing prostate tissue or disconnected regions would require specialist review and correction.
+
+Future work could investigate uncertainty estimation, segmentation post-processing, broader patient-level validation and 3D architectures that incorporate inter-slice continuity to improve anatomical consistency.
