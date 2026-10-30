@@ -1,70 +1,74 @@
-
 import matplotlib.pyplot as plt
+import pandas as pd
 import os
 
-# Standard U-Net training results (20 epochs)
-
-epochs = list(range(1, 21))
-
-train_losses = [
-    0.17571, 0.05338, 0.04630, 0.04373, 0.04055,
-    0.04145, 0.03737, 0.03876, 0.03974, 0.03660,
-    0.03754, 0.03456, 0.03595, 0.03342, 0.03524,
-    0.03266, 0.03092, 0.03379, 0.02956, 0.03023
-]
-
-val_losses = [
-    0.08176, 0.06765, 0.05969, 0.06182, 0.06369,
-    0.06316, 0.07499, 0.06129, 0.06558, 0.06435,
-    0.06502, 0.08209, 0.06506, 0.06185, 0.08905,
-    0.08668, 0.08890, 0.06856, 0.08627, 0.08910
-]
-
-val_dices = [
-    0.8596, 0.8801, 0.9034, 0.9005, 0.8931,
-    0.9010, 0.8915, 0.9037, 0.8999, 0.9045,
-    0.9009, 0.8763, 0.9005, 0.8979, 0.8866,
-    0.8819, 0.8841, 0.8991, 0.8935, 0.8866
-]
+# Load the training results
+baseline = pd.read_csv("checkpoints/unet_baseline_history.csv")
+improved = pd.read_csv("checkpoints/unet_improved_history.csv")
 
 os.makedirs("results", exist_ok=True)
 
-# Graph 1: Training and Validation Loss
 
+def plot_training_results(data, model_name, filename):
+    epochs = data["epoch"]
+    train_losses = data["training_loss"]
+    val_losses = data["validation_loss"]
+    val_dices = data["validation_dice"]
 
-plt.plot(epochs, train_losses, label="Training Loss", marker="o")
-plt.plot(epochs, val_losses, label="Validation Loss", marker="o")
+    # Find the best validation Dice and corresponding epoch
+    best_index = val_dices.idxmax()
+    best_epoch = int(data.loc[best_index, "epoch"])
+    best_dice = data.loc[best_index, "validation_dice"]
+    
+    # Graph 1: Training and Validation Loss
+    plt.figure()
+    plt.plot(epochs, train_losses, label="Training Loss")
+    plt.plot(epochs, val_losses, label="Validation Loss")
 
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Standard U-Net: Training and Validation Loss")
-plt.xticks(epochs)
-plt.legend()
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title(f"{model_name}: Training and Validation Loss")
+    plt.legend()
 
-plt.savefig("results/baseline_loss.png")
-plt.show()
-plt.close()
+    plt.savefig(f"results/{filename}_loss.png")
+    plt.show()
+    plt.close()
 
+    # Graph 2: Validation Dice
+    plt.figure()
+    plt.plot(epochs, val_dices, label="Validation Dice")
 
-# Graph 2: Validation Dice
+    # Highlight the best epoch
+    plt.scatter(
+        best_epoch,
+        best_dice,
+        color="red",
+        label=f"Best Dice: {best_dice:.4f} (Epoch {best_epoch})",
+    )
 
+    plt.xlabel("Epoch")
+    plt.ylabel("Dice Score")
+    plt.title(f"{model_name}: Validation Dice")
+    plt.legend()
 
-plt.plot(epochs, val_dices, label="Validation Dice", marker="o")
+    plt.savefig(f"results/{filename}_dice.png", dpi=300)
+    plt.show()
+    plt.close()
 
-best_epoch = val_dices.index(max(val_dices)) + 1
-best_dice = max(val_dices)
+    print(f"\n{model_name}")
+    print(f"Best Validation Dice: {best_dice:.4f}")
+    print(f"Best Epoch: {best_epoch}")
 
-plt.scatter(best_epoch, best_dice, color="red")
+# Standard U-Net
+plot_training_results(
+    baseline,
+    "Standard U-Net",
+    "baseline"
+)
 
-plt.xlabel("Epoch")
-plt.ylabel("Dice Score")
-plt.title("Standard U-Net: Validation Dice")
-plt.xticks(epochs)
-plt.legend()
-
-plt.savefig("results/baseline_dice.png", dpi=300)
-plt.show()
-plt.close()
-
-print(f"Best Validation Dice: {best_dice:.4f}")
-print(f"Best Epoch: {best_epoch}")
+# Improved U-Net
+plot_training_results(
+    improved,
+    "Improved U-Net",
+    "improved"
+)
