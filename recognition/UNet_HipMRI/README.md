@@ -88,7 +88,7 @@ The encoder consists of five stages, progressively increasing the number of feat
 
 The decoder consists of four upsampling stages, progressively reducing the number of feature channels from 128 to 8. Instead of transposed convolutions, the model uses nearest-neighbour upsampling followed by 3×3 convolutions. Skip connections concatenate features from corresponding encoder stages with the upsampled decoder features. Localisation blocks then refine the combined features using 3×3 and 1×1 convolutions.
 
-The improved model also incorporates **deep supervision**, using additional segmentation prediction layers at intermediate decoder stages. These predictions are upsampled and combined with the final segmentation output through element-wise addition.
+The improved model also incorporates deep supervision, using additional segmentation prediction layers at intermediate decoder stages. These predictions are upsampled and combined with the final segmentation output through element-wise addition.
 
 Finally, a 1×1 convolution produces six output channels corresponding to the background and five anatomical segmentation classes.
 
@@ -102,3 +102,25 @@ The implementation makes several adaptations to the original architecture propos
 
 - **Input and output channels:** The model accepts single-channel MRI slices instead of multi-modal 3D MRI inputs and produces six output channels corresponding to the background and five anatomical segmentation classes.
 
+## Training procedure
+Both the baseline 2D U-Net and improved 2D U-Net were trained using the HipMRI dataset, with the same training and validation splits to ensure a consistent comparison. Both models used the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. Training was conducted for 40 epochs on an NVIDIA A100 GPU using Rangpur, with the training and validation losses monitored after each epoch to assess model convergence and potential overfitting. The model checkpoint achieving the highest validation Dice similarity coefficient (DSC) was saved for subsequent evaluation. By keeping the dataset splits, loss function and training hyperparameters consistent, the experiment aims to evaluate the effect of the architectural differences on segmentation performance.
+
+### Training results
+
+| Measure | Baseline U-Net | Improved U-Net |
+|---|---:|---:|
+| Best epoch | 6 | 14 |
+| Best validation foreground Dice | 0.9103 | 0.9077 |
+| Training time | 108.65 min | 78.03 min |
+| Parameters | 31,030,918 | 796,026 |
+| Peak training VRAM | 1.074 GB | 0.225 GB |
+
+
+Both runs were below the project's proposed 8-hour training and 12 GB GPU-memory limits. The Improved U-Net used approximately 39 times fewer parameters.
+
+## Evaluation Procedure
+Both models were evaluated using their best saved checkpoints on the held-out HipMRI test set. Segmentation accuracy was assessed using the Dice similarity coefficient (DSC) and Intersection over Union (IoU) for each of the six segmentation classes, alongside the mean foreground Dice and IoU scores, excluding the background class.
+
+Additional analysis focused on the target prostate class, measuring per-slice Dice, IoU and 95th percentile Hausdorff distance (HD95) to assess segmentation overlap and boundary accuracy. To investigate regional performance, slices containing the target structure were grouped into three regions representing the two ends and central portion of the prostate. Inter-slice consistency was also examined by measuring changes in predicted segmentation area between adjacent slices.
+
+Segmentation failures were further investigated by identifying additional disconnected components and generating visual comparisons of MRI images, ground-truth masks and model predictions, including false-positive and false-negative overlays. Finally, inference time, peak GPU memory usage and model parameter counts were examined to compare computational efficiency.
