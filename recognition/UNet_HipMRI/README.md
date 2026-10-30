@@ -10,21 +10,21 @@ COMP3710 Pattern Recognition
 
 ## Overview
 
-This project investigates automated anatomical segmentation of MRI images using deep learning. Accurate segmentation is important for medical image analysis, as manually identifying anatomical boundaries can be time-consuming and subject to variability. The project compares a standard 2D U-Net with an improved 2D U-Net to investigate whether architectural modifications can improve segmentation accuracy and boundary precision, particularly for prostate segmentation. Both models are evaluated using identical dataset splits to assess predictive performance, computational efficiency and failure modes.
+This project investigates automated anatomical segmentation of MRI images using deep learning. Accurate segmentation is important for MRI analysis as manually identifying anatomical boundaries can be time-consuming and subject to variability. The project compares a standard 2D U-Net with an Improved 2D U-Net to investigate whether architectural modifications can improve segmentation accuracy and boundary precision, particularly for prostate segmentation. Both models are evaluated using identical dataset splits to assess predictive performance, computational efficiency and failure modes.
 
 ## Data and preprocessing
 
-The project used the HipMRI dataset (Dowling et al., 2015), consisting of 2D MRI slices of the male pelvis and their corresponding segmentation masks. The dataset was provided in NIfTI format (.nii.gz) through the `keras_slices_data` directory. Each segmentation mask contains integer labels representing six classes, including the background and five anatomical structures relevant to prostate radiotherapy planning.
+The project used the HipMRI dataset (Dowling et al., 2015), consisting of 2D MRI slices of the male pelvis and their corresponding segmentation masks. The dataset was provided in NIfTI format (.nii.gz) through the `keras_slices_data` directory. Each segmentation mask contains integer labels representing six classes, which are the background and five anatomical structures relevant to prostate radiotherapy planning.
 
-Examination of the provided segmentation masks revealed stored label values ranging from 0 to 5. Based on the classes reported by Dai et al. (2022), the corresponding labels were interpreted as background (0), body (1), bone (2), bladder (3), rectum (4) and prostate (5). This mapping was interpreted using segmentation overlays and further consultation with an MRI specialist.
+Examination of the provided segmentation masks revealed stored label values ranging from 0 to 5. Based on the classes reported by Dai et al. (2022), the labels were interpreted as background (0), body (1), bone (2), bladder (3), rectum (4) and prostate (5). This mapping was interpreted using segmentation overlays and further consultation with an MRI specialist.
 
 ### Dataset exploration and verification
 
 Before model training, the dataset was investigated to understand its structure, label distribution and suitability for segmentation. This included examining MRI dimensions, intensity ranges, image–mask pairing, spatial alignment and patient overlap. Visualisations of the anatomical labels were also examined to verify the interpretation of the segmentation classes.
 
-The data loader pairs images and masks using the patient, week and slice identifiers in their filenames. It checks that image and mask dimensions match and compares their NIfTI affine matrices. The dataset verification also checks that patient identifiers do not occur across different splits.
+The data loader pairs images and masks using the patient, week and slice identifiers in their filenames. It checks that image and mask dimensions match and compares their NIfTI affine matrices. 
 
-The HipMRI dataset was provided with predefined training, validation and test partitions, which were used rather than creating new splits. Patient-level separation was verified to ensure that MRI slices from the same patient did not appear across different partitions, reducing the risk of data leakage.
+The HipMRI dataset was provided with predefined training, validation and test partitions which were used rather than creating new splits. Patient-level separation was verified to ensure that MRI slices from the same patient did not appear across different partitions, reducing the risk of data leakage.
 
 The dataset split is below.
 
@@ -40,20 +40,20 @@ Although the test set contains 540 MRI slices, these are from only three patient
 
 ### Class distribution
 
-Class imbalance was identified as an important factor to consider because anatomical structures occupy different proportions of the MRI images. Dai et al. (2022) similarly reported substantial class imbalance in the pelvic MRI dataset, with approximately 270 times more background voxels than prostate voxels. This is  relevant because the prostate is the primary structure of interest, and its relatively small size can make accurate segmentation more challenging.
+Class imbalance was identified as an important factor to consider because anatomical structures occupy different proportions of MRI images. Dai et al. (2022) similarly reported substantial class imbalance in the pelvic MRI dataset, with approximately 270 times more background voxels than prostate voxels. This is  relevant because the prostate is the primary structure of interest, and its relatively small size can make accurate segmentation more challenging.
 
-The class distribution across the dataset was:
+The class distribution was calculated across all 12,660 segmentation masks after zero-padding and before applying training augmentation. The resulting pixel counts and percentages are presented below.
 
 | Class | Pixel Count | Percentage |
 |---|---:|---:|
-| Class 0 | 111,591,713 | 26.41% |
-| Class 1 | 253,682,431 | 60.05% |
-| Class 2 | 46,951,538 | 11.11% |
-| Class 3 | 7,296,009 | 1.73% |
-| Class 4 | 1,340,454 | 0.32% |
-| Class 5 | 1,599,295 | 0.38% |
+| Class 0 | 122,343,413 | 26.21% |
+| Class 1 | 280,976,564 | 60.21% |
+| Class 2 | 51,953,632 | 11.13% |
+| Class 3 | 8,093,600 | 1.73% |
+| Class 4 | 1,564,482 | 0.34% |
+| Class 5 | 1,766,549 | 0.38% |
 
-The dataset shows a large class imbalance, with Class 1 (body) accounting for 60.05% of all pixels, while the prostate (Class 5) represents only 0.38%. This imbalance may make accurate prostate segmentation more challenging because the prostate contributes less to the training objective compared with larger anatomical structures. Therefore, prostate-specific Dice and IoU scores are reported alongside overall segmentation performance to assess how effectively each model segments prostate.
+The dataset shows a large class imbalance, with Class 1 (body) accounting for 60.21% of all pixels, while the prostate (Class 5) represents only 0.38%. This imbalance may make accurate prostate segmentation more challenging because the prostate contributes less to the training objective compared with larger anatomical structures. Therefore, prostate-specific Dice and IoU scores are reported alongside overall segmentation performance to assess how effectively each model segments the prostate.
 
 ### Preprocessing and Augmentation
 
@@ -64,7 +64,7 @@ The dataset shows a large class imbalance, with Class 1 (body) accounting for 60
 
 Data augmentation was introduced after initial training showed signs of overfitting. It helped reduce overfitting to some extent by increasing the variability of the training data. However, both models continued to show signs of overfitting, suggesting that augmentation improved generalisation but did not completely resolve the issue.
 
-## MODELS
+## Models
 
 ### Standard 2D U-Net
 
@@ -72,7 +72,7 @@ The baseline model follows the standard U-Net architecture proposed by Ronneberg
 
 ![Standard 2D U-Net](2d-unet.png)
 
-The encoder consists of five stages, increasing the number of feature channels from 64 to 1024. Each stage applies two 3×3 convolutions followed by ReLU activation, with 2×2 max pooling used between stages.
+The encoder consists of five stages that increase the number of feature channels from 64 to 1024. Each stage applies two 3×3 convolutions followed by ReLU activation and 2×2 max pooling in between.
 
 The decoder has four stages using transposed convolutions for upsampling, reducing the number of feature channels from 1024 to 64. Features from matching encoder stages are concatenated with decoder features through skip connections, followed by double-convolution blocks. A final 1 × 1 convolution maps 64 features to six classes.
 
@@ -105,12 +105,12 @@ The implementation makes several adaptations from Isensee et al. (2018):
 
 - **Input and output channels:** Accepts single-channel MRI slices and produces six segmentation output channels.
 
-## Training procedure
-Rather than reproducing the original training configurations of each architecture, a consistent training procedure was used for fair comparison. Both the baseline 2D U-Net and improved 2D U-Net were trained on the HipMRI dataset, using identical training and validation splits. Both models train using the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. 
+## Training Procedure
+Rather than reproducing the original training configurations of both architectures, a consistent training procedure was used for fair comparison. Both the baseline 2D U-Net and Improved 2D U-Net were trained on the HipMRI dataset, using identical training and validation splits. Both models were trained using the Adam optimiser with an initial learning rate of 0.001, cross-entropy loss and a batch size of 4. 
 
 Training was conducted for 40 epochs on an NVIDIA A100 GPU using Rangpur, with the training and validation losses monitored after each epoch to assess model convergence and potential overfitting. The model checkpoint achieving the highest validation Dice similarity coefficient (DSC) was saved for evaluation. 
 
-By maintaining consistent dataset splits, loss function and training hyperparameters, the experiment aims to evaluate the effect of the architectural differences on segmentation performance.
+By maintaining consistent dataset splits, loss function and training hyperparameters, the experiment compares the segmentation performance and computational efficiency of the two model configurations. However, differences in model capacity mean that the effects of individual architectural modifications cannot be isolated.
 
 ### Training results
 
@@ -143,7 +143,7 @@ The Standard U-Net achieved a slightly higher peak validation Dice (0.9103) at e
 For both models, the checkpoint achieving the highest validation Dice was selected for final evaluation.
 
 ## Evaluation Procedure
-Segmentation accuracy was assessed using the DSC and Intersection over Union (IoU) for each of the segmentation classes. Mean foreground Dice and IoU scores were also calculated.
+Segmentation accuracy was assessed using the DSC and Intersection over Union (IoU) for each of the segmentation classes. Mean foreground Dice and IoU scores were also calculated by averaging the pooled scores for Classes 1–5, excluding the background class.
 
 Additional analysis focused on the prostate class, measuring per-slice Dice, IoU and 95th percentile Hausdorff distance (HD95) to assess segmentation overlap and boundary accuracy. To investigate regional performance, prostate-containing slices were divided into three regions representing the apex, mid-gland and base. 
 
@@ -173,7 +173,7 @@ Inference time, peak GPU memory usage and model parameter counts were examined t
 | **Prostate Dice** | **0.8563** | **0.8428**|
 | Prostate IoU | 0.7487 | 0.7282 |
 | Mean finite prostate HD95 (pixels) | 3.23 | 3.56 |
-| Undefined prostate HD95 cases | 18 | 35 |
+| Non-finite prostate HD95 cases | 18 | 35 |
 | Test loss | 0.0437 | 0.0472 |
 | Inference time per image | 9.25 ms | 1.74 ms |
 | Peak inference VRAM | 0.421 GB | 0.062 GB |
@@ -181,6 +181,8 @@ Inference time, peak GPU memory usage and model parameter counts were examined t
 The baseline U-Net achieved slightly higher overall segmentation performance, with a mean foreground Dice of 0.9186 and IoU of 0.8547, compared with 0.9148 and 0.8485 for the Improved U-Net. For the prostate class, the baseline achieved a Dice score of 0.8563 and IoU of 0.7487, compared with 0.8428 and 0.7282 for the Improved U-Net. Both models exceeded the project's target prostate Dice of 0.75.
 
 The baseline achieved higher Dice and IoU scores for most foreground classes, while the Improved U-Net performed slightly better on Class 4. The baseline also achieved a lower mean finite prostate HD95, 3.23 pixels compared with 3.56 pixels, indicating better boundary agreement among cases where HD95 was defined. However, the Improved U-Net demonstrated greater computational efficiency, achieving an average inference time of 1.74 ms per image compared with 9.25 ms for the baseline, while also using less GPU memory.
+
+Prostate HD95 was calculated for slices where both the ground-truth and predicted prostate masks contained foreground pixels. When one mask was empty and the other was non-empty, HD95 was assigned an infinite value because a valid boundary distance could not be calculated. These non-finite cases were excluded from the reported mean finite HD95 and counted separately to capture severe segmentation failures.
 
 ### Regional prostate analysis
 To examine where segmentation is less reliable, the prostate was divided into approximate apex, mid-gland and base regions using thirds of its superior–inferior extent, identified from the ground-truth prostate masks.
@@ -199,14 +201,14 @@ Therefore, lower column indices were classified as apex, middle indices as mid-g
 
 Both models achieved their highest regional Dice scores in the mid-gland, with the baseline U-Net scoring 0.9102 and the Improved U-Net scoring 0.8863. Performance was lower towards the apex and base regions, suggesting that segmentation is less reliable at the prostate's anatomical ends.
 
-The baseline U-Net outperformed the Improved U-Net at the apex and mid-gland, while the improved U-Net performed marginally better at the base, although the difference was negligible.
+The baseline U-Net outperformed the Improved U-Net at the apex and mid-gland, while the Improved U-Net performed marginally better at the base, although the difference was negligible.
 
 These findings suggest that the Improved U-Net did not consistently improve regional prostate segmentation. The lower Dice scores at the apex and base highlight potential difficulties in segmenting these regions, supporting the need for careful review of predictions near anatomical boundaries.
 
 
 ### Failure case analysis
 
-The following five cases were selected from the held-out HipMRI test set to investigate prostate boundary errors, under-contouring, disconnected predictions and differences between the baseline and Improved U-Net. Each case was evaluated using Dice, IoU, HD95, false-positive and false-negative measurements, alongside visual comparisons of the MRI, ground truth, predictions and error overlays.
+The following five cases were selected from the held-out HipMRI test set to investigate prostate boundary errors, under-contouring, disconnected predictions and differences between the baseline and Improved U-Net. Each case was evaluated using Dice, IoU, HD95, false-positive and false-negative measurements, alongside visual comparisons of the MRI, ground truth, predictions and error overlays. These cases provide qualitative examples of model behaviour rather than an estimate of the overall frequency of each failure type.
 
 **Approximate Apex Segmentation — case_040_week_0_slice_34**
 ![Poor apex segmentation](results/failure_cases/failure_0028.png)
@@ -232,7 +234,7 @@ The Improved U-Net produced four disconnected prostate components, while the bas
 **Complete Prostate Miss — case_040_week_4_slice_17**
 ![Complete Prostate Miss](results/selected_failures/case_040_week_4_slice_17.png)
 
-The Improved U-Net failed to identify the prostate in this MRI slice, achieving a Dice score of 0 and producing 115 false negatives with no false positives. The error overlay confirms that the entire ground-truth prostate region was missed. An undefined HD95 is reported as no predicted prostate boundary was available for comparison. In contrast, the baseline achieved a Dice score of 0.570, identifying some prostate tissue but still missing 68 pixels. Although neither model produced an accurate contour, the Improved U-Net's complete failure demonstrates a severe segmentation error. 
+The Improved U-Net failed to identify the prostate in this MRI slice, achieving a Dice score of 0 and producing 115 false negatives with no false positives. The error overlay confirms that the entire ground-truth prostate region was missed. An undefined HD95 is reported as no predicted prostate boundary was available for comparison. In contrast, the baseline achieved a Dice score of 0.570, identifying some prostate tissue but still missing some parts. Although neither model produced an accurate contour, the Improved U-Net's complete failure demonstrates a severe segmentation error. 
 
 ## Engineering Interpretation and Recommendation
 
@@ -252,7 +254,7 @@ Future work could investigate uncertainty estimation, segmentation post-processi
 
 - **Approximate anatomical regions:** The apex, mid-gland and base regions were estimated using the prostate's anatomical orientation rather than exact anatomical boundaries. Therefore, the regional findings should be interpreted as exploratory.
 
-- **Undefined HD95 values:** Cases where HD95 could not be calculated were excluded from the reported finite mean. This means the average HD95 does not fully represent severe failures, such as when a model completely misses the prostate.
+- **Non-finite HD95 values:** Cases where HD95 could not be calculated were excluded from the reported finite mean. This means the average HD95 does not fully represent severe failures, such as when a model completely misses the prostate.
 
 - **Lack of 3D spatial information:** Both models process MRI slices independently without considering neighbouring slices. This limits their ability to capture three-dimensional anatomical information and may contribute to inconsistent segmentation between slices.
 
@@ -295,18 +297,6 @@ The required Python packages and their versions are listed in `requirements.txt`
 ### 2. Dataset Setup
 
 The HipMRI dataset was provided through the course and is not included in this repository.
-
-The dataset should contain the following directory structure:
-
-```text
-keras_slices_data/
-├── keras_slices_train/
-├── seg_train/
-├── keras_slices_validate/
-├── seg_validate/
-├── keras_slices_test/
-└── seg_test/
-```
 
 Update the dataset path in `dataset.py` to match the local location of `keras_slices_data`.
 
@@ -389,17 +379,19 @@ If the Improved U-Net underperforms, preprocessing, loss functions and training 
 
 Dai, W., Woo, B., Liu, S., Marques, M., Engstrom, C., Greer, P. B., Crozier, S., Dowling, J. A., & Chandra, S. S. (2022). CAN3D: Fast 3D medical image segmentation via compact context aggregation. *Medical Image Analysis, 82*, Article 102562. https://doi.org/10.1016/j.media.2022.102562
 
-Dowling, J. A., Sun, J., Pichler, P., Rivest-Hénault, D., Ghose, S., Richardson, H., Wratten, C., Martin, J., Arm, J., Best, L., Chandra, S. S., Fripp, J., Menk, F. W., & Greer, P. B. (2015). Automatic substitute CT generation and contouring for MRI-alone external beam radiation therapy from standard MRI sequences. *International Journal of Radiation Oncology, Biology, Physics, 93*(5), 1144–1153. https://doi.org/10.1016/j.ijrobp.2015.08.045
+Dowling, J. A., Sun, J., Pichler, P., Rivest-Hénault, D., Ghose, S., Richardson, H., Wratten, C., Martin, J., Arm, J., Best, L., Chandra, S. S., Fripp, J., Menk, F. W., & Greer, P. B. (2015). Automatic substitute computed tomography generation and contouring for magnetic resonance imaging (MRI)-alone external beam radiation therapy from standard MRI sequences. *International Journal of Radiation Oncology, Biology, Physics, 93*(5), 1144–1153. https://doi.org/10.1016/j.ijrobp.2015.08.045
 
 Isensee, F. (2018). *network_architecture.py* [Source code]. GitHub. https://github.com/MIC-DKFZ/BraTS2017/blob/master/network_architecture.py
 
+Isensee, F., Kickingereder, P., Wick, W., Bendszus, M., & Maier-Hein, K. H. (2018). Brain tumor segmentation and radiomics survival prediction: Contribution to the BRATS 2017 challenge. In *Brainlesion: Glioma, multiple sclerosis, stroke and traumatic brain injuries* (Lecture Notes in Computer Science, Vol. 10670, pp. 287–297). Springer. https://doi.org/10.1007/978-3-319-75238-9_25
+
 Ito Aramendia, A. (2024, February 1). *The U-Net: A complete guide*. Medium. https://medium.com/@alejandro.itoaramendia/decoding-the-u-net-a-complete-guide-810b1c6d56d8
 
-Milesial. (2021). *unet_parts.py* [Python source code]. GitHub. https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_parts.py
+Milesial. (2021). *unet_parts.py* [Source code]. GitHub. https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_parts.py
 
 OpenAI. (2026). *ChatGPT* [Large language model]. https://chatgpt.com/
 
-Ronneberger, O., Fischer, P., & Brox, T. (2015). U-Net: Convolutional networks for biomedical image segmentation. In N. Navab, J. Hornegger, W. M. Wells, & A. F. Frangi (Eds.), *Medical image computing and computer-assisted intervention – MICCAI 2015* (Lecture Notes in Computer Science, Vol. 9351, pp. 234–241). Springer. https://doi.org/10.1007/978-3-319-24574-4_28
+Ronneberger, O., Fischer, P., & Brox, T. (2015). U-Net: Convolutional networks for biomedical image segmentation. In N. Navab, J. Hornegger, W. M. Wells, & A. F. Frangi (Eds.), *Medical image computing and computer-assisted intervention – MICCAI 2015* (Part III, Lecture Notes in Computer Science, Vol. 9351, pp. 234–241). Springer. https://doi.org/10.1007/978-3-319-24574-4_28
 
 
 ## Artificial Intelligence Usage Disclosure
@@ -414,9 +406,9 @@ AI was used in the following areas:
 
 - **Model implementation and training:** Guidance on developing and debugging the baseline and Improved U-Net architectures and reviewing code for correctness and identifying potential implementation issues.
 
-- **MRI visualisation and plotting:** Assistance with writing Python code to generate MRI visualisations, segmentation-mask overlays, anatomical label comparisons and prediction comparison figures. 
+- **MRI visualisation and plotting:** Assistance with writing code to generate MRI visualisations, segmentation-mask overlays, anatomical label comparisons and prediction comparison figures. 
 
-- **Model evaluation:** Assistance with developing and reviewing `evaluate.py`, including calculating DSC, IOU, HD95 and model parameter counts.
+- **Model evaluation:** Assistance with developing and reviewing `evaluate.py`, including calculating DSC, IoU, HD95 and model parameter counts.
 
 - **Regional and anatomical analysis:** Guidance on developing `regional_analysis.py`, verifying MRI anatomical orientation, dividing the prostate into approximate apex, mid-gland and base regions, calculating regional segmentation metrics and examining disconnected segmentation components.
 
@@ -424,7 +416,7 @@ AI was used in the following areas:
 
 - **Results processing and CSV generation:** Helped with calculating summary statistics and saving results to CSV files.
 
-- **Documentation and interpretation:** Assistance with refining and writing the README and interpretting results
+- **Documentation and interpretation:** Assistance with refining and writing the README and interpreting results.
 
 
 ### Verification of AI-Assisted Work
